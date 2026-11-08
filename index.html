@@ -84,6 +84,11 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   border-radius:10px; padding:10px 12px; margin:0; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all }
 
 .note{ color:var(--muted); font-size:.86rem; margin:0 }
+.msg{ margin:-10px 0 0; min-height:1.5em; text-align:center; font-size:.92rem; color:var(--muted) }
+.msg:empty{ display:none }
+.msg[data-kind="error"]{ color:var(--bad) }
+.msg[data-kind="ok"]{ color:var(--ok) }
+button.secondary{ width:100%; margin-top:-10px }
 
 @media (prefers-reduced-motion: reduce){
   .bead{ transition:none }
@@ -109,6 +114,8 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   </section>
 
   <button id="main" class="primary" type="button">Connect ring</button>
+  <p id="msg" class="msg" role="status"></p>
+  <button id="all" class="secondary" type="button" hidden>Show all Bluetooth devices</button>
 
   <section class="stats" aria-label="Summary">
     <div class="stat"><span class="k">Today</span><span id="today" class="v">0</span></div>
@@ -131,7 +138,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">This page only listens. It never sends anything to the ring. Your counts are saved in this browser, on this phone.</p>
+  <p class="note">This page only listens. It never sends anything to the ring. Your counts are saved in this browser, on this phone. Page version 2.</p>
 </main>
 
 <script>
@@ -282,19 +289,38 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   let device = null, want = false, busy = false, retry = 0, timer = null, everConnected = false, pendingRead = false, wake = null;
 
   function setStatus(s, label) { const p = $('status'); p.dataset.s = s; p.textContent = label; }
-  function updateButton() { $('main').textContent = want ? 'Stop' : (device ? 'Connect ring' : 'Connect ring'); }
+  function updateButton() { $('main').textContent = want ? 'Stop' : 'Connect ring'; }
+  function say(text, kind) { const m = $('msg'); m.textContent = text || ''; m.dataset.kind = kind || ''; }
 
-  async function choose() {
-    if (!navigator.bluetooth) { $('nobt').hidden = false; return; }
-    try {
-      device = await navigator.bluetooth.requestDevice({
-        filters: [{ namePrefix: 'Zikr' }],
-        optionalServices: [SVC, SVC2]
-      });
-    } catch (e) {
-      log('sys', e && e.name === 'NotFoundError' ? 'No ring chosen.' : `Could not open the device list: ${e && e.message}`);
+  async function choose(showAll) {
+    if (!navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== 'function') {
+      $('nobt').hidden = false;
+      say('This browser has no Bluetooth. Open the page in the Bluefy app.', 'error');
+      log('sys', 'navigator.bluetooth is missing.');
       return;
     }
+    const opts = showAll
+      ? { acceptAllDevices: true, optionalServices: [SVC, SVC2] }
+      : { filters: [{ namePrefix: 'Zikr' }], optionalServices: [SVC, SVC2] };
+    say('Opening the Bluetooth device list…');
+    log('sys', showAll ? 'Asking for any device.' : 'Asking for a device named Zikr…');
+    const hint = setTimeout(() => {
+      say('No list showed up? In iPhone Settings → Bluefy, turn on Bluetooth, then reload this page.', 'error');
+    }, 6000);
+    try {
+      device = await navigator.bluetooth.requestDevice(opts);
+    } catch (e) {
+      clearTimeout(hint);
+      const name = (e && e.name) || 'Error';
+      const text = (e && e.message) || String(e);
+      log('sys', `Device list failed: ${name}: ${text}`);
+      if (/cancel/i.test(text)) say('No ring chosen. If the list was empty, close iQibla Life and nRF Connect so the ring is free, then try again.');
+      else say(`The device list didn't open (${name}: ${text}).`, 'error');
+      $('all').hidden = false;
+      return;
+    }
+    clearTimeout(hint);
+    $('all').hidden = true;
     device.addEventListener('gattserverdisconnected', onDrop);
     log('sys', `Chose "${device.name || 'unnamed device'}".`);
     start();
@@ -321,6 +347,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       everConnected = true;
       retry = 0;
       setStatus('live', 'Listening');
+      say('Connected. Press the ring.', 'ok');
       log('sys', 'Connected, listening for presses.');
       keepAwake();
       render();
@@ -330,7 +357,8 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
         if (pendingRead) { pendingRead = false; onBytes(v, 'read'); }
       } catch (e) { pendingRead = false; }
     } catch (e) {
-      log('sys', `Connection failed: ${e && e.message}`);
+      log('sys', `Connection failed: ${e && e.name}: ${e && e.message}`);
+      say(`Couldn't connect (${(e && e.message) || 'unknown error'}). Trying again…`, 'error');
       if (want) { setStatus('retry', 'Reconnecting…'); later(); }
     } finally {
       busy = false;
@@ -346,6 +374,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   function onDrop() {
     if (!want) { setStatus('idle', 'Not connected'); return; }
     log('sys', 'The ring dropped the connection.');
+    say('The ring hung up. Reconnecting…');
     setStatus('retry', 'Reconnecting…');
     later();
   }
@@ -364,15 +393,31 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (e) {}
     releaseAwake();
     setStatus('idle', 'Not connected');
+    say('');
     log('sys', 'Stopped.');
     updateButton(); render();
   }
 
   $('main').addEventListener('click', () => {
-    if (want) stop();
-    else if (device) start();
-    else choose();
+    try {
+      if (want) stop();
+      else if (device) start();
+      else choose(false);
+    } catch (e) {
+      say(`Something went wrong: ${e && e.message}`, 'error');
+      log('sys', `Button error: ${e && e.message}`);
+    }
   });
+  $('all').addEventListener('click', () => choose(true));
+
+  window.addEventListener('error', (e) => { say(`Page error: ${e.message}`, 'error'); });
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason;
+    say(`Page error: ${(r && r.message) || r}`, 'error');
+  });
+  if (window.top !== window) {
+    say('This page is inside another page. Open hichamabd.github.io/iRing directly in Bluefy.', 'error');
+  }
 
   // Keep the screen on while counting, where the browser allows it
   async function keepAwake() {
