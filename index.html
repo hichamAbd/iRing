@@ -189,12 +189,12 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
 
   <section class="block" aria-labelledby="vibTitle">
     <h2 id="vibTitle">Vibrate on milestones</h2>
-    <label class="check"><span>Every 33</span><input id="vib33" type="checkbox" data-ring data-needs="vib"></label>
-    <label class="check"><span>Every 100</span><input id="vib100" type="checkbox" data-ring data-needs="vib"></label>
+    <label class="check"><span>Every 33</span><input id="vib33" type="checkbox" data-ring data-needs="settingsSeen"></label>
+    <label class="check"><span>Every 100</span><input id="vib100" type="checkbox" data-ring data-needs="settingsSeen"></label>
     <div class="inline">
       <label for="vibCustom" class="grow">Custom, every</label>
-      <input id="vibCustom" type="number" inputmode="numeric" min="0" max="9999" value="0" data-ring data-needs="vib">
-      <button id="vibCustomSave" type="button" data-ring data-needs="vib">Save</button>
+      <input id="vibCustom" type="number" inputmode="numeric" min="0" max="9999" value="" placeholder="0" data-ring data-needs="settingsSeen">
+      <button id="vibCustomSave" type="button" data-ring data-needs="settingsSeen">Save</button>
     </div>
     <p id="vibStatus" class="status">Set 0 to turn the custom milestone off.</p>
   </section>
@@ -202,7 +202,8 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   <section class="block" aria-labelledby="prayerTitle">
     <h2 id="prayerTitle">Prayer reminders</h2>
     <ul class="prayers" id="prayers"></ul>
-    <p id="prayStatus" class="status" hidden>Waiting for the ring's settings…</p>
+    <p id="prayStatus" class="status" hidden></p>
+    <button id="praySave" type="button" data-ring data-needs="settingsSeen" hidden>Save prayer reminders</button>
     <p class="note">The ring works out these times from the location it was last given. If they look wrong for your city, add a location below.</p>
     <details class="sub">
       <summary>Prayer location (optional)</summary>
@@ -231,6 +232,12 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
         <p id="locStatus" class="status">No location saved.</p>
       </div>
     </details>
+  </section>
+
+  <section class="block" aria-labelledby="remTitle">
+    <h2 id="remTitle">Hourly reminder</h2>
+    <p id="remStatus" class="status">Connect to see it.</p>
+    <p class="note">The ring vibrates on this schedule by itself. For now it's set in the official app; a recording of you changing it would let this page change it too.</p>
   </section>
 
   <section class="block" aria-labelledby="screenTitle">
@@ -267,7 +274,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 10.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 11.</p>
 </main>
 
 <script>
@@ -303,7 +310,11 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
 
   // What the ring told us during this visit
   const ring = { battery: null, fw: null, flip: null, screen: null, prayers: null, vib: null,
-                 times: null, mode: 0, prog: 0, target: null, clockAt: null };
+                 times: null, mode: 0, prog: 0, target: null, clockAt: null, settingsSeen: null, reminder: null };
+  // What the switches show; unknown values stay null (shown as a dash) until the ring reports them or you set them
+  const draft = { pray: [null, null, null, null, null], vib: [null, null, null] };
+  const notes = { pray: null, vib: null };
+  const known = (arr) => Array.isArray(arr) && arr.every((x) => x != null);
 
   // ---------- bead ring: 1 marker bead + 33 beads ----------
   const NS = 'http://www.w3.org/2000/svg';
@@ -324,8 +335,8 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     const n = document.createElement('span'); n.textContent = name;
     const t = document.createElement('span'); t.className = 'time'; t.id = `ptime${i}`; t.textContent = '--:--';
     const c = document.createElement('input'); c.type = 'checkbox'; c.id = `pray${i}`;
-    c.setAttribute('aria-label', `${name} reminder`); c.dataset.ring = ''; c.dataset.needs = 'prayers';
-    c.addEventListener('change', sendPrayers);
+    c.setAttribute('aria-label', `${name} reminder`); c.dataset.ring = ''; c.dataset.needs = 'settingsSeen';
+    c.addEventListener('change', () => onPrayChange(i, c.checked));
     li.append(n, t, c);
     $('prayers').appendChild(li);
   });
@@ -396,18 +407,44 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     else cs.textContent = 'Not running.';
     cs.dataset.kind = ring.mode === 4 ? 'ok' : '';
 
-    // Say why the switches are grey while the ring's settings haven't arrived
-    $('prayStatus').hidden = !(live && !ring.prayers);
-    if (live && !ring.vib) { $('vibStatus').dataset.kind = ''; $('vibStatus').textContent = 'Waiting for the ring\'s settings…'; }
-    else if ($('vibStatus').textContent.startsWith('Waiting')) $('vibStatus').textContent = 'Set 0 to turn the custom milestone off.';
-    if (ring.vib) {
-      $('vib33').checked = ring.vib[0] === '1'; $('vib100').checked = ring.vib[1] === '1';
-      if (document.activeElement !== $('vibCustom')) $('vibCustom').value = parseInt(ring.vib[2], 10) || 0;
-    }
+    // Milestones
+    const vs = $('vibStatus');
+    const vibDesc = !live ? 'Connect to use these.'
+      : !ring.settingsSeen ? 'Waiting for the ring\'s settings…'
+      : !known(ring.vib) ? 'The ring didn\'t report these. Set all three, then tap Save.'
+      : 'Set 0 to turn the custom milestone off.';
+    vs.textContent = notes.vib ? notes.vib.text : vibDesc;
+    vs.dataset.kind = notes.vib ? notes.vib.kind : '';
+    [['vib33', 0], ['vib100', 1]].forEach(([id, k]) => {
+      $(id).checked = draft.vib[k] === '1';
+      $(id).indeterminate = draft.vib[k] == null;
+    });
+    if (document.activeElement !== $('vibCustom')) $('vibCustom').value = draft.vib[2] ?? '';
+
+    // Prayer reminders
+    const ps = $('prayStatus');
+    const prayDesc = !live ? ''
+      : !ring.settingsSeen ? 'Waiting for the ring\'s settings…'
+      : !known(ring.prayers) ? 'The ring didn\'t report all of these. Set each one (a dash means unknown), then tap Save.'
+      : '';
+    ps.textContent = notes.pray ? notes.pray.text : prayDesc;
+    ps.dataset.kind = notes.pray ? notes.pray.kind : '';
+    ps.hidden = !ps.textContent;
+    $('praySave').hidden = !(live && ring.settingsSeen && !known(ring.prayers));
     PRAYERS.forEach((_, i) => {
-      if (ring.prayers && ring.prayers[i]) $(`pray${i}`).checked = ring.prayers[i][0] === '1';
+      const c = $(`pray${i}`);
+      c.checked = draft.pray[i] === '1';
+      c.indeterminate = draft.pray[i] == null;
       $(`ptime${i}`).textContent = (ring.times && ring.times[i]) || '--:--';
     });
+
+    // Hourly reminder (read from the ring)
+    const rs = $('remStatus');
+    const r = ring.reminder;
+    const every = (m) => m === 60 ? 'hour' : m % 60 === 0 ? `${m / 60} hours` : `${m} minutes`;
+    rs.textContent = !r ? (live ? 'Waiting for the ring…' : 'Connect to see it.')
+      : !r.interval ? 'Off.'
+      : `Every ${every(r.interval)}, from ${r.start} to ${r.end}.`;
     if (ring.screen && document.activeElement !== $('screenSel')) {
       const opt = $('screenSel').querySelector(`option[value="${ring.screen}"]`);
       if (opt) $('screenSel').value = String(ring.screen);
@@ -542,16 +579,28 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     const target = parseInt(f[8], 10);
     if (target > 0) ring.target = target;
     if (mode === 2) ring.mode = 2;
+    // field 3: hourly reminder as <minutes>#<start>#<end>, e.g. 60#01:00#19:00 (0#0#0 = off)
+    const rem = (f[3] || '').split('#');
+    if (rem.length >= 3) ring.reminder = { interval: parseInt(rem[0], 10) || 0, start: rem[1], end: rem[2] };
   }
 
   // Q25,<screen seconds>,<5 prayer reminders on#?#?>,<vibrate 33#100#?>
+  // The ring sometimes cuts this answer short (seen: "Q25,10,0#+00#"), so read what is there
+  // and keep earlier known values for the rest.
   function onSettings(f) {
     const sec = parseInt(f[1], 10);
     if (sec > 0) ring.screen = sec;
-    const pr = (f[2] || '').split(':').map((e) => e.split('#'));
-    if (pr.length >= 5) ring.prayers = pr.slice(0, 5);
-    const vib = (f[3] || '').split('#');
-    if (vib.length >= 2) ring.vib = vib;
+    const entries = (f[2] || '').split(':');
+    const fresh = PRAYERS.map((_, i) => {
+      const e = (entries[i] || '').split('#');
+      return e[0] === '0' || e[0] === '1' ? [e[0], e[1] || '+00', e[2] || '+00'] : null;
+    });
+    ring.prayers = fresh.map((e, i) => e || (ring.prayers && ring.prayers[i]) || null);
+    const vib = f.length >= 4 ? (f[3] || '').split('#') : [];
+    ring.vib = [0, 1, 2].map((i) => (vib[i] != null && vib[i] !== '' ? vib[i] : (ring.vib ? ring.vib[i] : null)));
+    ring.settingsSeen = true;
+    draft.pray = ring.prayers.map((e) => (e ? e[0] : null));
+    draft.vib = ring.vib.slice();
   }
 
   // ---------- message log ----------
@@ -679,7 +728,8 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       await ask('P25', [], 'Q25');               // screen time, prayer reminders, milestones
       await ask('P12', [], 'Q12', 2500);         // ask for saved sessions (they arrive as Q06)
       synced = true;
-      if (!ring.vib || !ring.prayers) log('sys', 'The ring\'s settings message did not come through complete.');
+      ring.settingsSeen = true;
+      if (!known(ring.prayers) || !known(ring.vib)) log('sys', 'The ring\'s settings answer was cut short; set the missing ones by hand.');
     } finally {
       syncing = false;
       render();
@@ -727,44 +777,69 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   });
 
   // P24,<33 on>#<100 on>#<custom value, 0 = off>; Q25's last field reports the same three
-  async function sendVib(custom) {
-    if (!ring.vib) return;
-    const third = custom != null ? String(custom) : (ring.vib[2] ?? '0');
-    const v = [$('vib33').checked ? '1' : '0', $('vib100').checked ? '1' : '0', third];
-    const r = await ask('P24', [v.join('#')], 'Q24');
-    if (!r) { say('The ring did not confirm.', 'error'); render(); return; }
-    ring.vib = v;
-    if (custom == null) { say('Milestones saved on the ring.', 'ok'); render(); return; }
-    // Ask the ring what it stored, since this field wasn't in the recording
-    const q = await ask('P25', [], 'Q25');
-    const now = q ? ((q.split(',')[3] || '').split('#')[2] ?? null) : null;
-    const st = $('vibStatus');
-    if (now === third) {
-      st.dataset.kind = 'ok';
-      st.textContent = custom === 0 ? 'Custom milestone off.' : `Saved: the ring vibrates every ${custom}.`;
-    } else {
-      st.dataset.kind = 'error';
-      st.textContent = `Not confirmed: the ring reports ${now ?? 'nothing'}. Send Claude the log.`;
+  async function sendVib() {
+    if (draft.vib[0] == null || draft.vib[1] == null) {
+      notes.vib = { text: 'Tick or untick "Every 33" and "Every 100" first.', kind: 'error' }; render(); return;
     }
-    log('sys', `Custom milestone ${custom}: ring reports ${now ?? 'nothing'}.`);
+    const v = [draft.vib[0], draft.vib[1], draft.vib[2] ?? '0'];
+    const r = await ask('P24', [v.join('#')], 'Q24');
+    if (!r) { notes.vib = { text: 'The ring did not confirm.', kind: 'error' }; render(); return; }
+    ring.vib = v.slice();
+    // Ask the ring what it stored
+    const q = await ask('P25', [], 'Q25');
+    const now = q ? (q.split(',')[3] || '').split('#') : [];
+    if (now.length >= 3) {
+      const ok = now[0] === v[0] && now[1] === v[1] && now[2] === v[2];
+      notes.vib = ok
+        ? { text: v[2] === '0' ? 'Saved on the ring. Custom milestone off.' : `Saved on the ring, including every ${v[2]}.`, kind: 'ok' }
+        : { text: `Not confirmed: the ring reports ${now.join(' / ')}.`, kind: 'error' };
+    } else {
+      notes.vib = { text: 'Saved. The ring confirmed it, but its settings answer was cut short, so it can\'t be double-checked.', kind: 'ok' };
+    }
+    log('sys', `Milestones ${v.join('#')}: ring reports ${now.length ? now.join('#') : 'a cut-short answer'}.`);
     render();
   }
-  $('vib33').addEventListener('change', () => sendVib());
-  $('vib100').addEventListener('change', () => sendVib());
+  function onVibToggle(k, checked) {
+    draft.vib[k] = checked ? '1' : '0';
+    notes.vib = null;
+    if (known(ring.vib)) sendVib(); else render();
+  }
+  $('vib33').addEventListener('change', () => onVibToggle(0, $('vib33').checked));
+  $('vib100').addEventListener('change', () => onVibToggle(1, $('vib100').checked));
+  $('vibCustom').addEventListener('input', () => {
+    const v = $('vibCustom').value;
+    draft.vib[2] = v === '' ? null : String(Math.max(0, Math.min(9999, parseInt(v, 10) || 0)));
+  });
   $('vibCustomSave').addEventListener('click', () => {
     const n = Math.max(0, Math.min(9999, parseInt($('vibCustom').value, 10) || 0));
     $('vibCustom').value = n;
-    sendVib(n);
+    draft.vib[2] = String(n);
+    notes.vib = null;
+    sendVib();
   });
 
+  // P23,<on#offset#offset> for the five prayers, separated by ":"
   async function sendPrayers() {
-    if (!ring.prayers) return;
-    const p = ring.prayers.map((e, i) => [$(`pray${i}`).checked ? '1' : '0', e[1] ?? '+00', e[2] ?? '+00']);
+    if (draft.pray.some((x) => x == null)) {
+      notes.pray = { text: 'Tick or untick every prayer first (a dash means unknown).', kind: 'error' }; render(); return;
+    }
+    const p = draft.pray.map((on, i) => {
+      const e = ring.prayers && ring.prayers[i];
+      return [on, (e && e[1]) || '+00', (e && e[2]) || '+00'];
+    });
     const r = await ask('P23', [p.map((e) => e.join('#')).join(':')], 'Q23');
-    if (r) { ring.prayers = p; say('Prayer reminders saved on the ring.', 'ok'); }
-    else say('The ring did not confirm.', 'error');
+    if (!r) { notes.pray = { text: 'The ring did not confirm.', kind: 'error' }; render(); return; }
+    ring.prayers = p;
+    notes.pray = { text: 'Prayer reminders saved on the ring.', kind: 'ok' };
+    await ask('P25', [], 'Q25');               // refresh; anything cut short keeps what was just saved
     render();
   }
+  function onPrayChange(i, checked) {
+    draft.pray[i] = checked ? '1' : '0';
+    notes.pray = null;
+    if (known(ring.prayers)) sendPrayers(); else render();
+  }
+  $('praySave').addEventListener('click', () => { notes.pray = null; sendPrayers(); });
 
   function readCoord(v, limit) {
     const n = parseFloat(String(v).replace(',', '.'));
