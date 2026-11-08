@@ -202,6 +202,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   <section class="block" aria-labelledby="prayerTitle">
     <h2 id="prayerTitle">Prayer reminders</h2>
     <ul class="prayers" id="prayers"></ul>
+    <p id="prayStatus" class="status" hidden>Waiting for the ring's settings…</p>
     <p class="note">The ring works out these times from the location it was last given. If they look wrong for your city, add a location below.</p>
     <details class="sub">
       <summary>Prayer location (optional)</summary>
@@ -266,7 +267,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 9.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 10.</p>
 </main>
 
 <script>
@@ -395,6 +396,10 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     else cs.textContent = 'Not running.';
     cs.dataset.kind = ring.mode === 4 ? 'ok' : '';
 
+    // Say why the switches are grey while the ring's settings haven't arrived
+    $('prayStatus').hidden = !(live && !ring.prayers);
+    if (live && !ring.vib) { $('vibStatus').dataset.kind = ''; $('vibStatus').textContent = 'Waiting for the ring\'s settings…'; }
+    else if ($('vibStatus').textContent.startsWith('Waiting')) $('vibStatus').textContent = 'Set 0 to turn the custom milestone off.';
     if (ring.vib) {
       $('vib33').checked = ring.vib[0] === '1'; $('vib100').checked = ring.vib[1] === '1';
       if (document.activeElement !== $('vibCustom')) $('vibCustom').value = parseInt(ring.vib[2], 10) || 0;
@@ -674,6 +679,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       await ask('P25', [], 'Q25');               // screen time, prayer reminders, milestones
       await ask('P12', [], 'Q12', 2500);         // ask for saved sessions (they arrive as Q06)
       synced = true;
+      if (!ring.vib || !ring.prayers) log('sys', 'The ring\'s settings message did not come through complete.');
     } finally {
       syncing = false;
       render();
@@ -929,13 +935,29 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     }
   }
 
+  // On iPhone the ring splits long messages into 20-byte pieces. A piece that fills a whole
+  // chunk may have more coming, so hold it briefly; anything that doesn't start like a new
+  // message ("Qnn," or "Rnn") is glued onto what came before.
   const decoder = new TextDecoder();
+  const isStart = (t) => /^[QR]\d{2}(,|$)/.test(t);
+  let pending = '', parts = 0, pendingTimer = null;
+  function flushPending() {
+    clearTimeout(pendingTimer);
+    if (!pending) return;
+    const text = pending, n = parts;
+    pending = ''; parts = 0;
+    log('ring', n > 1 ? `${text}   (${n} pieces)` : text);
+    onMessage(text);
+  }
   function onNotify(e) {
     const dv = e.target.value;
     const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
     const text = decoder.decode(bytes).replace(/[^\x20-\x7e]/g, '·');
-    log('ring', text);
-    onMessage(text);
+    if (pending && !isStart(text)) { pending += text; parts++; }
+    else { flushPending(); pending = text; parts = 1; }
+    clearTimeout(pendingTimer);
+    if (bytes.length >= 20) pendingTimer = setTimeout(flushPending, 150);
+    else flushPending();
   }
 
   function onDrop() {
