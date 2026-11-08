@@ -138,14 +138,15 @@ button.secondary{ width:100%; margin-top:-10px }
     <pre id="log"></pre>
   </details>
 
-  <p class="note">This page only listens. It never sends anything to the ring. Your counts are saved in this browser, on this phone. Page version 2.</p>
+  <p class="note">This page only listens. It never sends anything to the ring. Your counts are saved in this browser, on this phone. Page version 3.</p>
 </main>
 
 <script>
 (() => {
   // What the ring exposes (found with nRF Connect)
-  const SVC = 0xd0ff;                                      // main service
-  const NOTIFY = 0xd002;                                   // ring -> phone messages
+  // Full text UUIDs: Bluefy rejects short numeric ones (raw error "2")
+  const SVC = '0000d0ff-0000-1000-8000-00805f9b34fb';      // main service
+  const NOTIFY = '0000d002-0000-1000-8000-00805f9b34fb';   // ring -> phone messages
   const SVC2 = '02f00000-0000-0000-0000-00000000fe00';     // second vendor service (not used yet)
 
   const $ = (id) => document.getElementById(id);
