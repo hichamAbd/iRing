@@ -98,6 +98,9 @@ input[type="checkbox"]{ width:22px; height:22px; accent-color:var(--accent); mar
 details.sub summary{ cursor:pointer; font-weight:700; font-size:.92rem }
 details.sub .inner{ display:flex; flex-direction:column; gap:10px; margin-top:10px }
 .coords{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.remgrid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px }
+.remgrid label{ display:flex; flex-direction:column; gap:4px; font-size:.8rem; color:var(--muted); min-width:0 }
+.remgrid select{ width:100% }
 .mapwrap{ position:relative; height:320px; max-width:100%; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:var(--bead) }
 .map{ position:absolute; inset:0 }
 .pin{ position:absolute; left:50%; top:50%; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%;
@@ -236,21 +239,29 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
 
   <section class="block" aria-labelledby="remTitle">
     <h2 id="remTitle">Hourly reminder</h2>
+    <p class="note">The ring vibrates on this schedule by itself, even with no phone nearby.</p>
+    <div class="remgrid">
+      <label for="remEvery">Every<select id="remEvery" data-ring data-needs="reminder">
+        <option value="0">Off</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="180">3 hours</option>
+      </select></label>
+      <label for="remFrom">From<select id="remFrom" data-ring data-needs="reminder"></select></label>
+      <label for="remTo">To<select id="remTo" data-ring data-needs="reminder"></select></label>
+    </div>
+    <button id="remSave" type="button" data-ring data-needs="reminder">Save reminder</button>
     <p id="remStatus" class="status">Connect to see it.</p>
-    <p class="note">The ring vibrates on this schedule by itself. For now it's set in the official app; a recording of you changing it would let this page change it too.</p>
   </section>
 
   <section class="block" aria-labelledby="screenTitle">
-    <h2 id="screenTitle">Screen time (test)</h2>
-    <p class="note">How long the ring's screen stays on. This setting wasn't in your recording, so the page tries the most likely command and then asks the ring whether it changed.</p>
+    <h2 id="screenTitle">Screen time</h2>
+    <p class="note">How long the ring's screen stays on after you press it.</p>
     <div class="inline">
       <select id="screenSel" aria-label="Screen time" data-ring>
         <option value="10">10 s</option><option value="20">20 s</option><option value="30">30 s</option>
         <option value="40">40 s</option><option value="50">50 s</option><option value="60">60 s</option>
       </select>
-      <button id="screenBtn" type="button" data-ring>Try it</button>
+      <button id="screenBtn" type="button" data-ring>Save</button>
     </div>
-    <p id="screenStatus" class="status">Not tried yet.</p>
+    <p id="screenStatus" class="status"></p>
   </section>
 
   <section class="block" aria-labelledby="weekTitle">
@@ -274,7 +285,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 11.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 12.</p>
 </main>
 
 <script>
@@ -305,6 +316,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     customLive: !!saved.customLive,
   };
   function save() { store.set(KEY, state); }
+  const PRAYKEY = 'zikr-ring-prayers-v1';         // last prayer reminder choices saved from this page
   const LOCKEY = 'zikr-ring-location-v1';
   let loc = store.get(LOCKEY, null);              // { lat: "48.86000", lon: "2.35000" } or null
 
@@ -313,7 +325,8 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
                  times: null, mode: 0, prog: 0, target: null, clockAt: null, settingsSeen: null, reminder: null };
   // What the switches show; unknown values stay null (shown as a dash) until the ring reports them or you set them
   const draft = { pray: [null, null, null, null, null], vib: [null, null, null] };
-  const notes = { pray: null, vib: null };
+  const notes = { pray: null, vib: null, rem: null };
+  let remDraft = null, remDirty = false;          // the reminder as shown in the selects
   const known = (arr) => Array.isArray(arr) && arr.every((x) => x != null);
 
   // ---------- bead ring: 1 marker bead + 33 beads ----------
@@ -358,6 +371,23 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       }
     }
     return 100;
+  }
+
+  // Hour choices for the reminder; an unusual value from the ring gets its own option
+  ['remFrom', 'remTo'].forEach((id) => {
+    for (let h = 0; h < 24; h++) {
+      const o = document.createElement('option');
+      o.value = o.textContent = `${pad(h)}:00`;
+      $(id).appendChild(o);
+    }
+  });
+  function setSelect(id, value) {
+    const sel = $(id);
+    if (value == null || document.activeElement === sel) return;
+    if (!sel.querySelector(`option[value="${value}"]`)) {
+      const o = document.createElement('option'); o.value = o.textContent = value; sel.appendChild(o);
+    }
+    sel.value = value;
   }
 
   function render() {
@@ -438,13 +468,21 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       $(`ptime${i}`).textContent = (ring.times && ring.times[i]) || '--:--';
     });
 
-    // Hourly reminder (read from the ring)
+    // Hourly reminder
     const rs = $('remStatus');
     const r = ring.reminder;
     const every = (m) => m === 60 ? 'hour' : m % 60 === 0 ? `${m / 60} hours` : `${m} minutes`;
-    rs.textContent = !r ? (live ? 'Waiting for the ring…' : 'Connect to see it.')
-      : !r.interval ? 'Off.'
-      : `Every ${every(r.interval)}, from ${r.start} to ${r.end}.`;
+    const remDesc = !r ? (live ? 'Waiting for the ring…' : 'Connect to see it.')
+      : !r.interval ? 'The ring reports: off.'
+      : `The ring reports: every ${every(r.interval)}, from ${r.start} to ${r.end}.`;
+    rs.textContent = notes.rem ? notes.rem.text : remDesc;
+    rs.dataset.kind = notes.rem ? notes.rem.kind : '';
+    if (r && !remDirty) remDraft = { interval: r.interval, start: r.start, end: r.end };
+    if (remDraft) {
+      setSelect('remEvery', String(remDraft.interval));
+      if (/^\d{2}:\d{2}$/.test(remDraft.start)) setSelect('remFrom', remDraft.start);
+      if (/^\d{2}:\d{2}$/.test(remDraft.end)) setSelect('remTo', remDraft.end);
+    }
     if (ring.screen && document.activeElement !== $('screenSel')) {
       const opt = $('screenSel').querySelector(`option[value="${ring.screen}"]`);
       if (opt) $('screenSel').value = String(ring.screen);
@@ -725,6 +763,12 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       await ask('P02', [], 'Q02');               // battery and firmware
       await ask('P13', [], 'Q13');               // prayer times, custom tally state
       if (loc) await ask('P09', ['1', '3', '0', loc.lat, loc.lon, tz()], 'Q09');
+      // The official app re-sends the prayer reminders on every connect; do the same with
+      // the choices last saved here, which also keeps the ring's settings answer complete
+      const savedPrayers = store.get(PRAYKEY, null);
+      if (Array.isArray(savedPrayers) && savedPrayers.length === 5) {
+        if (await ask('P23', [savedPrayers.map((e) => e.join('#')).join(':')], 'Q23')) ring.prayers = savedPrayers;
+      }
       await ask('P25', [], 'Q25');               // screen time, prayer reminders, milestones
       await ask('P12', [], 'Q12', 2500);         // ask for saved sessions (they arrive as Q06)
       synced = true;
@@ -830,6 +874,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     const r = await ask('P23', [p.map((e) => e.join('#')).join(':')], 'Q23');
     if (!r) { notes.pray = { text: 'The ring did not confirm.', kind: 'error' }; render(); return; }
     ring.prayers = p;
+    store.set(PRAYKEY, p);
     notes.pray = { text: 'Prayer reminders saved on the ring.', kind: 'ok' };
     await ask('P25', [], 'Q25');               // refresh; anything cut short keeps what was just saved
     render();
@@ -915,23 +960,39 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   });
   if (loc) { $('lat').value = parseFloat(loc.lat).toFixed(2); $('lon').value = parseFloat(loc.lon).toFixed(2); }
 
-  // Screen time test: Q25 reports the screen time in seconds, next to the settings set by P23 and P24,
-  // so the most likely setter is P22 with seconds. The page checks the ring's answer afterwards.
+  // Screen time: P22,<seconds> (10–60), seen in the official app's traffic
   $('screenBtn').addEventListener('click', async () => {
     const sec = parseInt($('screenSel').value, 10);
     const st = $('screenStatus');
-    st.dataset.kind = ''; st.textContent = `Trying ${sec} s…`;
-    const ack = await ask('P22', [String(sec)], 'Q22', 1500);
-    const q = await ask('P25', [], 'Q25');
-    const now = q ? parseInt(q.split(',')[1], 10) : null;
-    if (now === sec) {
-      st.dataset.kind = 'ok';
-      st.textContent = `It worked: the ring now reports ${sec} s.`;
-    } else {
-      st.dataset.kind = 'error';
-      st.textContent = `Not confirmed. The ring ${ack ? 'answered' : 'did not answer'} the command and still reports ${now ?? 'nothing'} s. Check how long the screen stays on and tell Claude.`;
+    st.dataset.kind = ''; st.textContent = 'Saving…';
+    const ack = await ask('P22', [String(sec)], 'Q22');
+    if (!ack) { st.dataset.kind = 'error'; st.textContent = 'The ring did not confirm.'; return; }
+    ring.screen = sec;
+    st.dataset.kind = 'ok'; st.textContent = `Saved: the screen stays on for ${sec} seconds.`;
+    render();
+  });
+
+  // Hourly reminder: P11,<minutes>,<start>#<end>; off is P11,0. Q13 field 3 reports it back.
+  ['remEvery', 'remFrom', 'remTo'].forEach((id) => $(id).addEventListener('change', () => {
+    remDirty = true; notes.rem = null;
+    remDraft = { interval: parseInt($('remEvery').value, 10) || 0, start: $('remFrom').value, end: $('remTo').value };
+  }));
+  $('remSave').addEventListener('click', async () => {
+    const d = { interval: parseInt($('remEvery').value, 10) || 0, start: $('remFrom').value, end: $('remTo').value };
+    if (d.interval && d.start >= d.end) {
+      notes.rem = { text: 'The end time has to be after the start time.', kind: 'error' }; render(); return;
     }
-    log('sys', `Screen time test ${sec} s: ack=${ack || 'none'}, ring reports ${now ?? 'nothing'}.`);
+    const args = d.interval ? [String(d.interval), `${d.start}#${d.end}`] : ['0'];
+    const ack = await ask('P11', args, 'Q11');
+    if (!ack) { notes.rem = { text: 'The ring did not confirm.', kind: 'error' }; render(); return; }
+    remDirty = false;
+    await ask('P13', [], 'Q13');               // read it back
+    const r = ring.reminder;
+    const ok = r && (d.interval ? r.interval === d.interval && r.start === d.start && r.end === d.end : !r.interval);
+    notes.rem = ok
+      ? { text: d.interval ? `Saved: every ${d.interval / 60} h from ${d.start} to ${d.end}.` : 'Saved: reminder off.', kind: 'ok' }
+      : { text: 'Sent, but the ring reports something different. Send Claude the log.', kind: 'error' };
+    render();
   });
 
   // ---------- connection ----------
