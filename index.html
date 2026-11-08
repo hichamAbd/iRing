@@ -84,11 +84,6 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   border-radius:10px; padding:10px 12px; margin:0; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all }
 
 .note{ color:var(--muted); font-size:.86rem; margin:0 }
-.hs{ display:flex; flex-direction:column; gap:10px }
-.hs h2{ margin:0 }
-.hs button{ align-self:flex-start }
-#hsResult[data-kind="ok"]{ color:var(--ok); font-weight:700 }
-#hsResult[data-kind="error"]{ color:var(--bad) }
 .msg{ margin:-10px 0 0; min-height:1.5em; text-align:center; font-size:.92rem; color:var(--muted) }
 .msg:empty{ display:none }
 .msg[data-kind="error"]{ color:var(--bad) }
@@ -134,13 +129,6 @@ button.secondary{ width:100%; margin-top:-10px }
     <p id="weekEmpty" class="note" style="margin-top:10px">Daily totals fill in as you count with this page connected.</p>
   </section>
 
-  <section aria-labelledby="hsTitle" class="hs">
-    <h2 id="hsTitle">Stop the disconnects (test)</h2>
-    <p class="note">The ring hangs up about 10 seconds after connecting, probably because it expects a reply from the official app. Your count isn't affected: presses made while it reconnects are caught up. This test sends a few guessed replies to the ring, one per connection, and keeps the one that works.</p>
-    <button id="hsBtn" type="button">Start test</button>
-    <p id="hsResult" class="note">Not running.</p>
-  </section>
-
   <details class="log">
     <summary>Ring messages <span id="logCount">(0)</span></summary>
     <div class="logbar">
@@ -150,7 +138,7 @@ button.secondary{ width:100%; margin-top:-10px }
     <pre id="log"></pre>
   </details>
 
-  <p class="note">This page only listens, unless you start the disconnect test. Your counts are saved in this browser, on this phone. Page version 5.</p>
+  <p class="note">The page talks to the ring the way the official app does: it confirms each count and asks for the ring's details. Your counts are saved in this browser, on this phone. Page version 6.</p>
 </main>
 
 <script>
@@ -159,8 +147,7 @@ button.secondary{ width:100%; margin-top:-10px }
   // Full text UUIDs: Bluefy rejects short numeric ones (raw error "2")
   const SVC = '0000d0ff-0000-1000-8000-00805f9b34fb';      // main service
   const NOTIFY = '0000d002-0000-1000-8000-00805f9b34fb';   // ring -> phone messages
-  const D001 = '0000d001-0000-1000-8000-00805f9b34fb';     // phone -> ring (write)
-  const D003 = '0000d003-0000-1000-8000-00805f9b34fb';     // phone -> ring (write)
+  const D004 = '0000d004-0000-1000-8000-00805f9b34fb';     // phone -> ring commands (what the official app uses)
   const SVC2 = '02f00000-0000-0000-0000-00000000fe00';     // second vendor service (not used yet)
 
   const $ = (id) => document.getElementById(id);
@@ -265,7 +252,7 @@ button.secondary{ width:100%; margin-top:-10px }
   function log(kind, msg) {
     const d = new Date();
     const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
-    lines.push(`[${t}] ${kind === 'ring' ? 'ring:' : '--'} ${msg}`);
+    lines.push(`[${t}] ${kind === 'ring' ? 'ring:' : kind === 'page' ? 'page:' : '--'} ${msg}`);
     if (lines.length > 400) lines.shift();
     $('log').textContent = lines.length ? lines.slice().reverse().join('\n') : 'Nothing yet. Connect the ring and press it.';
     $('logCount').textContent = `(${lines.length})`;
@@ -273,16 +260,12 @@ button.secondary{ width:100%; margin-top:-10px }
   $('log').textContent = 'Nothing yet. Connect the ring and press it.';
 
   const decoder = new TextDecoder();
-  function onBytes(dv, source) {
+  function onBytes(dv) {
     const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
     const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
     const text = decoder.decode(bytes).replace(/[^\x20-\x7e]/g, '·');
-    log('ring', `${text}   [${hex}]${source === 'read' ? '  (read)' : ''}`);
-    // The 20-byte burst right after connecting looks like a greeting the ring wants answered
-    // Shape seen so far: [k, k+2, k+3, …, k+20], with k going up on every message
-    if (source !== 'read' && bytes.length === 20 && !/^[A-Z]\d{2}/.test(text)) onGreeting(bytes.slice());
-    const m = /^Q07,(\d+)/.exec(text);
-    if (m) applyCount(parseInt(m[1], 10), source !== 'read');
+    log('ring', `${text}   [${hex}]`);
+    onMessage(text);
   }
 
   $('copy').addEventListener('click', () => {
@@ -304,83 +287,55 @@ button.secondary{ width:100%; margin-top:-10px }
   });
 
   // ---------- Bluetooth ----------
-  let device = null, want = false, busy = false, retry = 0, timer = null, everConnected = false, pendingRead = false, wake = null;
-  let svcRef = null, connectedAt = 0, connId = 0, repliedWith = null, replyTimer = null;
+  let device = null, want = false, busy = false, retry = 0, timer = null, everConnected = false, wake = null;
+  let cmdChr = null, connectedAt = 0, connId = 0, helloSent = false, helloTimer = null;
 
-  // ---------- disconnect test: try a few guessed replies to the ring's greeting ----------
-  const CANDIDATES = [
-    { label: 'echo the greeting on D001', ch: D001, make: (g) => g },
-    { label: 'send "R01" back on D001', ch: D001, make: () => new TextEncoder().encode('R01') },
-    { label: 'echo the greeting on D003', ch: D003, make: (g) => g },
-  ];
-  const HSKEY = 'zikr-ring-hs-v1';
-  function loadHs() {
-    try {
-      const h = JSON.parse(localStorage.getItem(HSKEY) || 'null');
-      if (h && typeof h === 'object') {
-        return { on: !!h.on, i: Math.min(h.i | 0, CANDIDATES.length - 1), works: typeof h.works === 'number' ? h.works : null, done: !!h.done };
-      }
-    } catch (e) {}
-    return { on: false, i: 0, works: null, done: false };
+  // ---------- the ring's text protocol (read from the official app's traffic) ----------
+  // ring -> phone on D002: "Qnn,…" answers, plus "R01" right after connecting
+  // phone -> ring on D004: "Pnn,<local time YYYYMMDDHHMMSSmmm>,…"
+  function stamp(d = new Date()) {
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+      `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}${pad(d.getMilliseconds(), 3)}`;
   }
-  function saveHs() { try { localStorage.setItem(HSKEY, JSON.stringify(hs)); } catch (e) {} }
-  let hs = loadHs();
 
-  function renderHs() {
-    const b = $('hsBtn'), r = $('hsResult');
-    if (hs.works != null) {
-      b.textContent = 'Forget this reply';
-      r.textContent = `Reply ${hs.works + 1} works: the ring stays connected. The page now sends it automatically.`;
-      r.dataset.kind = 'ok';
-    } else if (hs.on) {
-      b.textContent = 'Stop test';
-      r.textContent = `Trying reply ${hs.i + 1} of ${CANDIDATES.length} (${CANDIDATES[hs.i].label}). Keep the page connected for about a minute.`;
-      r.dataset.kind = '';
-    } else if (hs.done) {
-      b.textContent = 'Run the test again';
-      r.textContent = `None of the ${CANDIDATES.length} replies stopped the disconnects.`;
-      r.dataset.kind = 'error';
-    } else {
-      b.textContent = 'Start test';
-      r.textContent = 'Not running.';
-      r.dataset.kind = '';
+  let sendChain = Promise.resolve();
+  function send(code, ...args) {
+    const text = [code, stamp(), ...args].join(',');
+    const chr = cmdChr, myConn = connId;
+    sendChain = sendChain.then(async () => {
+      if (!chr || myConn !== connId) return;
+      const data = new TextEncoder().encode(text);
+      try {
+        if (typeof chr.writeValueWithoutResponse === 'function') await chr.writeValueWithoutResponse(data);
+        else await chr.writeValue(data);
+        log('page', text);
+      } catch (e) {
+        log('sys', `Could not send ${code}: ${e && e.name}: ${e && e.message}`);
+      }
+    });
+    return sendChain;
+  }
+
+  function onMessage(text) {
+    let m;
+    if ((m = /^Q07,(\d+),(\d+)/.exec(text))) {
+      send('P07', m[2]);                          // confirm each count, as the official app does
+      applyCount(parseInt(m[1], 10), true);
+    } else if (text === 'R01') {
+      hello();
+    } else if (text.startsWith('Q02,')) {
+      const f = text.split(',');
+      log('sys', `Ring info: firmware ${f[6] || '?'}, battery reading ${f[5] || '?'}.`);
     }
   }
 
-  async function onGreeting(g) {
-    if (repliedWith !== null || !svcRef) return;
-    const idx = hs.works != null ? hs.works : (hs.on ? hs.i : null);
-    if (idx == null) return;
-    const cand = CANDIDATES[idx];
-    repliedWith = idx;
-    const myConn = connId;
-    try {
-      const c = await svcRef.getCharacteristic(cand.ch);
-      const data = cand.make(g);
-      if (typeof c.writeValueWithoutResponse === 'function') await c.writeValueWithoutResponse(data);
-      else await c.writeValue(data);
-      log('sys', `Sent reply ${idx + 1}: ${cand.label} [${Array.from(data, b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase()}]`);
-    } catch (e) {
-      log('sys', `Reply ${idx + 1} could not be sent: ${e && e.name}: ${e && e.message}`);
-    }
-    clearTimeout(replyTimer);
-    replyTimer = setTimeout(() => {
-      if (connId === myConn && device && device.gatt.connected && hs.works == null) {
-        hs.works = idx; hs.on = false; hs.done = false;
-        saveHs(); renderHs();
-        log('sys', `Reply ${idx + 1} kept the ring connected for 20 s.`);
-        say('Found it: the ring now stays connected.', 'ok');
-      }
-    }, 20000);
+  // Answer the ring's opening "R01" (or after 1.5 s without one) with a harmless info request
+  function hello() {
+    if (helloSent) return;
+    helloSent = true;
+    clearTimeout(helloTimer);
+    send('P02');
   }
-
-  $('hsBtn').addEventListener('click', () => {
-    if (hs.works != null) { hs = { on: false, i: 0, works: null, done: false }; log('sys', 'Forgot the working reply.'); }
-    else if (hs.on) { hs.on = false; log('sys', 'Disconnect test stopped.'); }
-    else { hs = { on: true, i: 0, works: null, done: false }; log('sys', 'Disconnect test started.'); }
-    saveHs(); renderHs();
-  });
-  renderHs();
 
   function setStatus(s, label) { const p = $('status'); p.dataset.s = s; p.textContent = label; }
   function updateButton() { $('main').textContent = want ? 'Stop' : 'Connect ring'; }
@@ -435,7 +390,8 @@ button.secondary{ width:100%; margin-top:-10px }
       connectedAt = Date.now();
       const svc = await server.getPrimaryService(SVC);
       const chr = await svc.getCharacteristic(NOTIFY);
-      svcRef = svc; connId++; repliedWith = null;
+      cmdChr = await svc.getCharacteristic(D004);
+      connId++; helloSent = false;
       chr.removeEventListener('characteristicvaluechanged', onNotify);
       chr.addEventListener('characteristicvaluechanged', onNotify);
       await chr.startNotifications();
@@ -447,11 +403,8 @@ button.secondary{ width:100%; margin-top:-10px }
       log('sys', 'Connected, listening for presses.');
       keepAwake();
       render();
-      pendingRead = true;
-      try {
-        const v = await chr.readValue();
-        if (pendingRead) { pendingRead = false; onBytes(v, 'read'); }
-      } catch (e) { pendingRead = false; }
+      clearTimeout(helloTimer);
+      helloTimer = setTimeout(hello, 1500);
     } catch (e) {
       log('sys', `Connection failed: ${e && e.name}: ${e && e.message}`);
       say(`Couldn't connect (${(e && e.message) || 'unknown error'}). Trying again…`, 'error');
@@ -461,26 +414,13 @@ button.secondary{ width:100%; margin-top:-10px }
     }
   }
 
-  function onNotify(e) {
-    const source = pendingRead ? 'read' : 'press';
-    pendingRead = false;
-    onBytes(e.target.value, source);
-  }
+  function onNotify(e) { onBytes(e.target.value); }
 
   function onDrop() {
     if (!want) { setStatus('idle', 'Not connected'); return; }
     const secs = connectedAt ? (Date.now() - connectedAt) / 1000 : 0;
     log('sys', `The ring dropped the connection after ${secs.toFixed(1)} s.`);
-    if (repliedWith !== null && secs < 15) {
-      if (hs.works === repliedWith) { log('sys', `Reply ${repliedWith + 1} stopped working.`); hs.works = null; }
-      if (hs.on && hs.i === repliedWith) {
-        log('sys', `Reply ${hs.i + 1} didn't keep the ring connected.`);
-        hs.i++;
-        if (hs.i >= CANDIDATES.length) { hs.on = false; hs.done = true; hs.i = 0; log('sys', 'None of the test replies worked.'); }
-      }
-      saveHs(); renderHs();
-    }
-    repliedWith = null; svcRef = null;
+    cmdChr = null; clearTimeout(helloTimer);
     say('The ring hung up. Reconnecting…');
     setStatus('retry', 'Reconnecting…');
     later();
