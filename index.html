@@ -293,7 +293,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 13.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 14.</p>
 </main>
 
 <script>
@@ -321,7 +321,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   const state = {
     last: saved.last ?? null, lastAt: saved.lastAt ?? null, days: saved.days || {},
     liveIds: saved.liveIds || [], sessions: saved.sessions || [], prog: saved.prog || 0,
-    customLive: !!saved.customLive,
+    customLive: !!saved.customLive, acc: saved.acc || [],
   };
   function save() { store.set(KEY, state); }
   const PRAYKEY = 'zikr-ring-prayers-v1';         // last prayer reminder choices saved from this page
@@ -557,13 +557,31 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     if (!when) state.lastAt = Date.now();
   }
 
-  // Main tally: the ring sends its running total, so presses made while disconnected are caught up
-  function applyMain(n) {
-    const prev = state.last;
-    let delta = 0;
-    if (prev == null) delta = 1;
-    else if (n > prev) delta = n - prev;
-    else if (n < prev) delta = n;            // the ring was reset back to 0 since last time
+  // How many presses of each ring session are already in the daily totals. Each session has
+  // its own ID and counts up from 0, so anything above this number is new: presses made while
+  // the page was closed or another phone was connected get counted when the page next hears
+  // from that session (a count message or the saved session).
+  const acc = new Map(state.acc);
+  function accSet(id, n) {
+    acc.delete(id); acc.set(id, n);
+    while (acc.size > 120) acc.delete(acc.keys().next().value);
+    state.acc = [...acc];
+  }
+  // Before this bookkeeping existed, sessions seen live were tracked in liveIds
+  const legacy = acc.size === 0;
+
+  function applyMain(n, id) {
+    let delta;
+    if (id && id !== '0') {
+      if (acc.has(id)) delta = Math.max(0, n - acc.get(id));
+      else if (legacy && state.liveIds.includes(id) && state.last != null) delta = Math.max(0, n - state.last);
+      else delta = n;                          // a session this page hasn't seen: all its presses are new
+      accSet(id, Math.max(n, acc.get(id) || 0));
+    } else {
+      // Ring without session IDs: follow the running total
+      const prev = state.last;
+      delta = prev == null ? 1 : n > prev ? n - prev : n < prev ? n : 0;
+    }
     addToday(delta);
     state.last = n;
   }
@@ -576,10 +594,6 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     const mode = parseInt(f[3], 10) || 0;
     const prog = parseInt(f[4], 10) || 0;
     send('P07', id);                                  // confirm, as the official app does
-    if (id !== '0' && !state.liveIds.includes(id)) {
-      state.liveIds.push(id);
-      if (state.liveIds.length > 60) state.liveIds.shift();
-    }
     if (mode === 2 || mode === 4) {
       const prev = state.prog || 0;
       addToday(prog >= prev ? prog - prev : prog);
@@ -587,7 +601,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       ring.prog = prog;
     } else {
       state.prog = 0; ring.prog = 0;
-      applyMain(count);
+      applyMain(count, id);
     }
     ring.mode = mode;
     save();
@@ -599,11 +613,13 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     send('P06', id);
     if (state.sessions.some((s) => s.id === id && s.kind === 'tally')) return;
     const count = parseInt(f[3], 10) || 0;
-    const offline = !state.liveIds.includes(id);
-    state.sessions.push({ id, kind: 'tally', start: f[1], end: f[2], count, offline });
+    const seen = acc.has(id) ? acc.get(id) : (legacy && state.liveIds.includes(id) ? count : 0);
+    const missed = Math.max(0, count - seen);
+    accSet(id, Math.max(count, seen));
+    state.sessions.push({ id, kind: 'tally', start: f[1], end: f[2], count, offline: missed > 0 });
     if (state.sessions.length > 150) state.sessions.shift();
-    if (offline) addToday(count, parseStamp(f[2]) || parseStamp(f[1]) || new Date());
-    log('sys', `Saved session ${f[1]}–${f[2]}: ${count}${offline ? ' (counted while the page was closed)' : ''}.`);
+    if (missed) addToday(missed, parseStamp(f[2]) || parseStamp(f[1]) || new Date());
+    log('sys', `Saved session ${f[1]}–${f[2]}: ${count}${missed ? ` (${missed} of them made while the page wasn't listening)` : ''}.`);
     save();
   }
 
