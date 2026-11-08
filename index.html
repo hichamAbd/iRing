@@ -150,7 +150,7 @@ button.secondary{ width:100%; margin-top:-10px }
     <pre id="log"></pre>
   </details>
 
-  <p class="note">This page only listens, unless you start the disconnect test. Your counts are saved in this browser, on this phone. Page version 4.</p>
+  <p class="note">This page only listens, unless you start the disconnect test. Your counts are saved in this browser, on this phone. Page version 5.</p>
 </main>
 
 <script>
@@ -279,7 +279,8 @@ button.secondary{ width:100%; margin-top:-10px }
     const text = decoder.decode(bytes).replace(/[^\x20-\x7e]/g, '·');
     log('ring', `${text}   [${hex}]${source === 'read' ? '  (read)' : ''}`);
     // The 20-byte burst right after connecting looks like a greeting the ring wants answered
-    if (source !== 'read' && bytes.length === 20 && bytes[0] < 0x20) onGreeting(bytes.slice());
+    // Shape seen so far: [k, k+2, k+3, …, k+20], with k going up on every message
+    if (source !== 'read' && bytes.length === 20 && !/^[A-Z]\d{2}/.test(text)) onGreeting(bytes.slice());
     const m = /^Q07,(\d+)/.exec(text);
     if (m) applyCount(parseInt(m[1], 10), source !== 'read');
   }
