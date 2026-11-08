@@ -96,6 +96,7 @@ input[type="checkbox"]{ width:22px; height:22px; accent-color:var(--accent); mar
 .prayers .time{ font-family:var(--f-mono); font-size:.9rem; color:var(--muted); font-variant-numeric:tabular-nums }
 
 details.sub summary{ cursor:pointer; font-weight:700; font-size:.92rem }
+.block > .inner{ display:flex; flex-direction:column; gap:10px }
 details.sub .inner{ display:flex; flex-direction:column; gap:10px; margin-top:10px }
 .coords{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
 .remgrid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px }
@@ -205,6 +206,10 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   <section class="block" aria-labelledby="prayerTitle">
     <h2 id="prayerTitle">Prayer reminders</h2>
     <ul class="prayers" id="prayers"></ul>
+    <div class="row">
+      <button id="prayAllOn" type="button" data-ring data-needs="settingsSeen">All on</button>
+      <button id="prayAllOff" type="button" data-ring data-needs="settingsSeen">All off</button>
+    </div>
     <p id="prayStatus" class="status" hidden></p>
     <button id="praySave" type="button" data-ring data-needs="settingsSeen" hidden>Save prayer reminders</button>
     <p class="note">The ring works out these times from the location it was last given. If they look wrong for your city, add a location below.</p>
@@ -240,14 +245,17 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   <section class="block" aria-labelledby="remTitle">
     <h2 id="remTitle">Hourly reminder</h2>
     <p class="note">The ring vibrates on this schedule by itself, even with no phone nearby.</p>
-    <div class="remgrid">
-      <label for="remEvery">Every<select id="remEvery" data-ring data-needs="reminder">
-        <option value="0">Off</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="180">3 hours</option>
-      </select></label>
-      <label for="remFrom">From<select id="remFrom" data-ring data-needs="reminder"></select></label>
-      <label for="remTo">To<select id="remTo" data-ring data-needs="reminder"></select></label>
+    <label class="check"><span>Reminder on</span><input id="remOn" type="checkbox" data-ring data-needs="reminder"></label>
+    <div id="remSchedule" class="inner" hidden>
+      <div class="remgrid">
+        <label for="remEvery">Every<select id="remEvery" data-ring data-needs="reminder">
+          <option value="60">1 hour</option><option value="120">2 hours</option><option value="180">3 hours</option>
+        </select></label>
+        <label for="remFrom">From<select id="remFrom" data-ring data-needs="reminder"></select></label>
+        <label for="remTo">To<select id="remTo" data-ring data-needs="reminder"></select></label>
+      </div>
+      <button id="remSave" type="button" data-ring data-needs="reminder">Save schedule</button>
     </div>
-    <button id="remSave" type="button" data-ring data-needs="reminder">Save reminder</button>
     <p id="remStatus" class="status">Connect to see it.</p>
   </section>
 
@@ -285,7 +293,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 12.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 13.</p>
 </main>
 
 <script>
@@ -326,7 +334,10 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   // What the switches show; unknown values stay null (shown as a dash) until the ring reports them or you set them
   const draft = { pray: [null, null, null, null, null], vib: [null, null, null] };
   const notes = { pray: null, vib: null, rem: null };
-  let remDraft = null, remDirty = false;          // the reminder as shown in the selects
+  // The schedule shown in the selects: what the ring reports when it's on, otherwise the last one saved here
+  const REMKEY = 'zikr-ring-reminder-v1';
+  let remSched = store.get(REMKEY, null) || { interval: 60, start: '08:00', end: '20:00' };
+  let remDirty = false;
   const known = (arr) => Array.isArray(arr) && arr.every((x) => x != null);
 
   // ---------- bead ring: 1 marker bead + 33 beads ----------
@@ -477,12 +488,13 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       : `The ring reports: every ${every(r.interval)}, from ${r.start} to ${r.end}.`;
     rs.textContent = notes.rem ? notes.rem.text : remDesc;
     rs.dataset.kind = notes.rem ? notes.rem.kind : '';
-    if (r && !remDirty) remDraft = { interval: r.interval, start: r.start, end: r.end };
-    if (remDraft) {
-      setSelect('remEvery', String(remDraft.interval));
-      if (/^\d{2}:\d{2}$/.test(remDraft.start)) setSelect('remFrom', remDraft.start);
-      if (/^\d{2}:\d{2}$/.test(remDraft.end)) setSelect('remTo', remDraft.end);
-    }
+    const remIsOn = !!(r && r.interval);
+    if (remIsOn && !remDirty) remSched = { interval: r.interval, start: r.start, end: r.end };
+    $('remOn').checked = remIsOn;
+    $('remSchedule').hidden = !remIsOn;
+    setSelect('remEvery', String(remSched.interval));
+    setSelect('remFrom', remSched.start);
+    setSelect('remTo', remSched.end);
     if (ring.screen && document.activeElement !== $('screenSel')) {
       const opt = $('screenSel').querySelector(`option[value="${ring.screen}"]`);
       if (opt) $('screenSel').value = String(ring.screen);
@@ -973,12 +985,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
   });
 
   // Hourly reminder: P11,<minutes>,<start>#<end>; off is P11,0. Q13 field 3 reports it back.
-  ['remEvery', 'remFrom', 'remTo'].forEach((id) => $(id).addEventListener('change', () => {
-    remDirty = true; notes.rem = null;
-    remDraft = { interval: parseInt($('remEvery').value, 10) || 0, start: $('remFrom').value, end: $('remTo').value };
-  }));
-  $('remSave').addEventListener('click', async () => {
-    const d = { interval: parseInt($('remEvery').value, 10) || 0, start: $('remFrom').value, end: $('remTo').value };
+  async function saveReminder(d) {
     if (d.interval && d.start >= d.end) {
       notes.rem = { text: 'The end time has to be after the start time.', kind: 'error' }; render(); return;
     }
@@ -986,14 +993,29 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     const ack = await ask('P11', args, 'Q11');
     if (!ack) { notes.rem = { text: 'The ring did not confirm.', kind: 'error' }; render(); return; }
     remDirty = false;
+    if (d.interval) store.set(REMKEY, d);
     await ask('P13', [], 'Q13');               // read it back
     const r = ring.reminder;
     const ok = r && (d.interval ? r.interval === d.interval && r.start === d.start && r.end === d.end : !r.interval);
     notes.rem = ok
-      ? { text: d.interval ? `Saved: every ${d.interval / 60} h from ${d.start} to ${d.end}.` : 'Saved: reminder off.', kind: 'ok' }
+      ? { text: d.interval ? `On: every ${d.interval / 60} h from ${d.start} to ${d.end}.` : 'Off. The ring won\'t vibrate on a schedule.', kind: 'ok' }
       : { text: 'Sent, but the ring reports something different. Send Claude the log.', kind: 'error' };
     render();
+  }
+  ['remEvery', 'remFrom', 'remTo'].forEach((id) => $(id).addEventListener('change', () => {
+    remDirty = true; notes.rem = null;
+    remSched = { interval: parseInt($('remEvery').value, 10) || 60, start: $('remFrom').value, end: $('remTo').value };
+  }));
+  $('remSave').addEventListener('click', () => saveReminder(remSched));
+  // Turning it back on reuses the last schedule saved here (or 1 hour, 08:00–20:00)
+  $('remOn').addEventListener('change', () => {
+    notes.rem = null;
+    saveReminder($('remOn').checked ? remSched : { interval: 0 });
   });
+
+  // Prayer reminders: all on / all off in one tap
+  $('prayAllOn').addEventListener('click', () => { draft.pray = PRAYERS.map(() => '1'); notes.pray = null; sendPrayers(); });
+  $('prayAllOff').addEventListener('click', () => { draft.pray = PRAYERS.map(() => '0'); notes.pray = null; sendPrayers(); });
 
   // ---------- connection ----------
   function setStatus(s, label) { const p = $('status'); p.dataset.s = s; p.textContent = label; }
