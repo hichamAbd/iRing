@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zikr Ring Link</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono&family=Young+Serif&display=swap">
+<style>
+/* Layout: one narrow phone column; the 33-bead ring is the hero, stats and history below, raw log tucked away */
+:root{
+  --bg:#f2f5f3; --surface:#ffffff; --ink:#16231e; --muted:#5a6a63; --line:#d6dfda;
+  --accent:#94661c; --bead:#d2dbd6; --ok:#2c7a4c; --warn:#a85f16; --bad:#b03636;
+  --f-display:"Young Serif", Georgia, "Times New Roman", serif;
+  --f-body:"Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0d1412; --surface:#151f1c; --ink:#e4ebe7; --muted:#93a29b; --line:#25322e;
+    --accent:#d9a751; --bead:#2a3733; --ok:#62c08a; --warn:#e3a055; --bad:#e27272;
+    color-scheme: dark;
+  }
+}
+*{ box-sizing:border-box }
+html,body{ margin:0 }
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:var(--f-body); font-size:16px; line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:max(16px, env(safe-area-inset-top, 0px)) max(28px, env(safe-area-inset-bottom, 0px));
+}
+main{ max-width:460px; margin:0 auto; display:flex; flex-direction:column; gap:22px }
+header{ display:flex; align-items:center; justify-content:space-between; gap:12px }
+h1{ font-family:var(--f-display); font-weight:400; font-size:1.55rem; margin:0; text-wrap:balance }
+h2{ font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:700; margin:0 0 10px }
+
+.pill{ display:inline-flex; align-items:center; gap:7px; font-size:.8rem; font-weight:700; padding:5px 11px;
+  border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--muted); white-space:nowrap }
+.pill::before{ content:""; width:8px; height:8px; border-radius:50%; background:currentColor }
+.pill[data-s="live"]{ color:var(--ok) }
+.pill[data-s="connecting"], .pill[data-s="retry"]{ color:var(--warn) }
+
+.banner{ margin:0; border:1px solid var(--bad); color:var(--bad); background:var(--surface); padding:10px 12px; border-radius:10px; font-size:.92rem }
+
+.dial{ position:relative; width:100%; max-width:320px; aspect-ratio:1; margin:0 auto }
+.dial svg{ width:100%; height:100%; display:block }
+.bead{ fill:var(--bead); transition:fill .25s ease }
+.bead.on{ fill:var(--accent) }
+.bead.cur{ stroke:var(--ink); stroke-width:2 }
+.imam{ fill:var(--surface); stroke:var(--accent); stroke-width:2.5 }
+.center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; pointer-events:none }
+.count{ font-family:var(--f-display); font-size:clamp(3.4rem, 19vw, 5.2rem); line-height:1; font-variant-numeric:tabular-nums }
+.count.bump{ animation:bump .35s ease-out }
+@keyframes bump{ from{ transform:scale(1.1) } to{ transform:none } }
+.round{ color:var(--muted); font-size:.9rem; margin-top:8px; max-width:12rem }
+
+button{ font:inherit; font-weight:700; border-radius:12px; padding:13px 16px; border:1px solid var(--line);
+  background:var(--surface); color:var(--ink); cursor:pointer }
+button.primary{ width:100%; background:var(--ink); border-color:var(--ink); color:var(--bg) }
+button:focus-visible{ outline:3px solid var(--accent); outline-offset:2px }
+
+.stats{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px }
+.stat{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; min-width:0 }
+.stat .k{ font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700 }
+.stat .v{ font-family:var(--f-display); font-size:1.4rem; font-variant-numeric:tabular-nums; overflow-wrap:anywhere }
+
+.week{ list-style:none; margin:0; padding:0; display:grid; gap:7px }
+.week li{ display:grid; grid-template-columns:3.6rem minmax(0,1fr) 3.4rem; align-items:center; gap:10px; font-variant-numeric:tabular-nums }
+.week .d{ color:var(--muted); font-size:.9rem }
+.week .n{ text-align:right; font-weight:700 }
+.bar{ height:8px; background:var(--bead); border-radius:4px; overflow:hidden }
+.bar i{ display:block; height:100%; width:0; background:var(--accent); border-radius:4px }
+
+details.log{ border-top:1px solid var(--line); padding-top:14px }
+details.log summary{ font-weight:700; cursor:pointer }
+#logCount{ font-weight:400; color:var(--muted) }
+.logbar{ display:flex; gap:8px; margin:12px 0 }
+.logbar button{ padding:8px 12px; font-size:.9rem }
+pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; background:var(--surface); border:1px solid var(--line);
+  border-radius:10px; padding:10px 12px; margin:0; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all }
+
+.note{ color:var(--muted); font-size:.86rem; margin:0 }
+
+@media (prefers-reduced-motion: reduce){
+  .bead{ transition:none }
+  .count.bump{ animation:none }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Zikr Ring</h1>
+    <span id="status" class="pill" data-s="idle">Not connected</span>
+  </header>
+
+  <p id="nobt" class="banner" hidden>Bluetooth isn't available in this browser. Open this page in the Bluefy app.</p>
+
+  <section class="dial" aria-label="Current count on the ring">
+    <svg id="beads" viewBox="0 0 240 240" aria-hidden="true"></svg>
+    <div class="center">
+      <div id="count" class="count" aria-live="polite">0</div>
+      <div id="round" class="round">Connect, then press the ring</div>
+    </div>
+  </section>
+
+  <button id="main" class="primary" type="button">Connect ring</button>
+
+  <section class="stats" aria-label="Summary">
+    <div class="stat"><span class="k">Today</span><span id="today" class="v">0</span></div>
+    <div class="stat"><span class="k">Last press</span><span id="lastPress" class="v">–</span></div>
+    <div class="stat"><span class="k">Reconnects</span><span id="reconnects" class="v">0</span></div>
+  </section>
+
+  <section aria-labelledby="weekTitle">
+    <h2 id="weekTitle">Last 7 days</h2>
+    <ul id="week" class="week"></ul>
+    <p id="weekEmpty" class="note" style="margin-top:10px">Daily totals fill in as you count with this page connected.</p>
+  </section>
+
+  <details class="log">
+    <summary>Ring messages <span id="logCount">(0)</span></summary>
+    <div class="logbar">
+      <button id="copy" type="button">Copy log</button>
+      <button id="clear" type="button">Clear</button>
+    </div>
+    <pre id="log"></pre>
+  </details>
+
+  <p class="note">This page only listens. It never sends anything to the ring. Your counts are saved in this browser, on this phone.</p>
+</main>
+
+<script>
+(() => {
+  // What the ring exposes (found with nRF Connect)
+  const SVC = 0xd0ff;                                      // main service
+  const NOTIFY = 0xd002;                                   // ring -> phone messages
+  const SVC2 = '02f00000-0000-0000-0000-00000000fe00';     // second vendor service (not used yet)
+
+  const $ = (id) => document.getElementById(id);
+  const pad = (n, w = 2) => String(n).padStart(w, '0');
+  const dayKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  // ---------- saved state (this phone only) ----------
+  const KEY = 'zikr-ring-v1';
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (s && typeof s === 'object') return { last: s.last ?? null, lastAt: s.lastAt ?? null, days: s.days || {} };
+    } catch (e) {}
+    return { last: null, lastAt: null, days: {} };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  const state = load();
+
+  // ---------- bead ring: 1 marker bead + 33 beads ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  const beads = [];
+  for (let i = 0; i < 34; i++) {
+    const a = (-90 + i * 360 / 34) * Math.PI / 180;
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', (120 + 98 * Math.cos(a)).toFixed(2));
+    c.setAttribute('cy', (120 + 98 * Math.sin(a)).toFixed(2));
+    if (i === 0) { c.setAttribute('r', '8'); c.setAttribute('class', 'imam'); }
+    else { c.setAttribute('r', '6.4'); c.setAttribute('class', 'bead'); beads.push(c); }
+    $('beads').appendChild(c);
+  }
+
+  // ---------- rendering ----------
+  let reconnects = 0;
+  function render() {
+    const n = state.last ?? 0;
+    const el = $('count');
+    if (el.textContent !== String(n)) {
+      el.textContent = n;
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    }
+    const filled = n === 0 ? 0 : ((n - 1) % 33) + 1;
+    beads.forEach((b, i) => {
+      b.classList.toggle('on', i < filled);
+      b.classList.toggle('cur', i === filled - 1);
+    });
+    $('round').textContent = n === 0
+      ? (want ? 'Press the ring to begin' : 'Connect, then press the ring')
+      : `Round ${Math.floor((n - 1) / 33) + 1} · ${filled} of 33`;
+    $('today').textContent = state.days[dayKey()] || 0;
+    $('lastPress').textContent = state.lastAt
+      ? new Date(state.lastAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      : '–';
+    $('reconnects').textContent = reconnects;
+    renderWeek();
+  }
+
+  function renderWeek() {
+    const now = new Date();
+    const rows = [];
+    let max = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const v = state.days[dayKey(d)] || 0;
+      max = Math.max(max, v);
+      rows.push({ label: i === 0 ? 'Today' : d.toLocaleDateString('en-GB', { weekday: 'short' }), v });
+    }
+    const ul = $('week');
+    ul.textContent = '';
+    for (const r of rows) {
+      const li = document.createElement('li');
+      const d = document.createElement('span'); d.className = 'd'; d.textContent = r.label;
+      const bar = document.createElement('span'); bar.className = 'bar';
+      const fill = document.createElement('i'); fill.style.width = max ? (r.v / max * 100) + '%' : '0%';
+      bar.appendChild(fill);
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = r.v;
+      li.append(d, bar, n);
+      ul.appendChild(li);
+    }
+    $('weekEmpty').hidden = max > 0;
+  }
+
+  // ---------- counting ----------
+  // The ring sends its running total, so presses made while disconnected are caught up at the next message.
+  function applyCount(n, fromPress) {
+    const prev = state.last;
+    let delta = 0;
+    if (prev == null) delta = fromPress ? 1 : 0;
+    else if (n > prev) delta = n - prev;
+    else if (n < prev) delta = n;            // the ring was reset back to 0 since last time
+    if (delta > 0) {
+      const k = dayKey();
+      state.days[k] = (state.days[k] || 0) + delta;
+      state.lastAt = Date.now();
+    }
+    state.last = n;
+    save();
+    render();
+  }
+
+  // ---------- message log ----------
+  const lines = [];
+  function log(kind, msg) {
+    const d = new Date();
+    const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+    lines.push(`[${t}] ${kind === 'ring' ? 'ring:' : '--'} ${msg}`);
+    if (lines.length > 400) lines.shift();
+    $('log').textContent = lines.length ? lines.slice().reverse().join('\n') : 'Nothing yet. Connect the ring and press it.';
+    $('logCount').textContent = `(${lines.length})`;
+  }
+  $('log').textContent = 'Nothing yet. Connect the ring and press it.';
+
+  const decoder = new TextDecoder();
+  function onBytes(dv, source) {
+    const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
+    const text = decoder.decode(bytes).replace(/[^\x20-\x7e]/g, '·');
+    log('ring', `${text}   [${hex}]${source === 'read' ? '  (read)' : ''}`);
+    const m = /^Q07,(\d+)/.exec(text);
+    if (m) applyCount(parseInt(m[1], 10), source !== 'read');
+  }
+
+  $('copy').addEventListener('click', () => {
+    const txt = lines.join('\n');
+    const btn = $('copy');
+    const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy log'; }, 1600); };
+    const fallback = () => {
+      const r = document.createRange(); r.selectNodeContents($('log'));
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = 'Selected, tap Copy';
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback);
+    else fallback();
+  });
+  $('clear').addEventListener('click', () => {
+    lines.length = 0;
+    $('log').textContent = 'Nothing yet. Connect the ring and press it.';
+    $('logCount').textContent = '(0)';
+  });
+
+  // ---------- Bluetooth ----------
+  let device = null, want = false, busy = false, retry = 0, timer = null, everConnected = false, pendingRead = false, wake = null;
+
+  function setStatus(s, label) { const p = $('status'); p.dataset.s = s; p.textContent = label; }
+  function updateButton() { $('main').textContent = want ? 'Stop' : (device ? 'Connect ring' : 'Connect ring'); }
+
+  async function choose() {
+    if (!navigator.bluetooth) { $('nobt').hidden = false; return; }
+    try {
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'Zikr' }],
+        optionalServices: [SVC, SVC2]
+      });
+    } catch (e) {
+      log('sys', e && e.name === 'NotFoundError' ? 'No ring chosen.' : `Could not open the device list: ${e && e.message}`);
+      return;
+    }
+    device.addEventListener('gattserverdisconnected', onDrop);
+    log('sys', `Chose "${device.name || 'unnamed device'}".`);
+    start();
+  }
+
+  function start() {
+    want = true; retry = 0; updateButton(); render();
+    connect();
+  }
+
+  async function connect() {
+    clearTimeout(timer);
+    if (!want || !device || busy) return;
+    busy = true;
+    setStatus('connecting', everConnected ? 'Reconnecting…' : 'Connecting…');
+    try {
+      const server = await device.gatt.connect();
+      const svc = await server.getPrimaryService(SVC);
+      const chr = await svc.getCharacteristic(NOTIFY);
+      chr.removeEventListener('characteristicvaluechanged', onNotify);
+      chr.addEventListener('characteristicvaluechanged', onNotify);
+      await chr.startNotifications();
+      if (everConnected) reconnects++;
+      everConnected = true;
+      retry = 0;
+      setStatus('live', 'Listening');
+      log('sys', 'Connected, listening for presses.');
+      keepAwake();
+      render();
+      pendingRead = true;
+      try {
+        const v = await chr.readValue();
+        if (pendingRead) { pendingRead = false; onBytes(v, 'read'); }
+      } catch (e) { pendingRead = false; }
+    } catch (e) {
+      log('sys', `Connection failed: ${e && e.message}`);
+      if (want) { setStatus('retry', 'Reconnecting…'); later(); }
+    } finally {
+      busy = false;
+    }
+  }
+
+  function onNotify(e) {
+    const source = pendingRead ? 'read' : 'press';
+    pendingRead = false;
+    onBytes(e.target.value, source);
+  }
+
+  function onDrop() {
+    if (!want) { setStatus('idle', 'Not connected'); return; }
+    log('sys', 'The ring dropped the connection.');
+    setStatus('retry', 'Reconnecting…');
+    later();
+  }
+
+  function later() {
+    clearTimeout(timer);
+    if (!want) return;
+    const wait = Math.min(300 * 2 ** retry, 5000);
+    retry++;
+    timer = setTimeout(connect, wait);
+  }
+
+  function stop() {
+    want = false;
+    clearTimeout(timer);
+    try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (e) {}
+    releaseAwake();
+    setStatus('idle', 'Not connected');
+    log('sys', 'Stopped.');
+    updateButton(); render();
+  }
+
+  $('main').addEventListener('click', () => {
+    if (want) stop();
+    else if (device) start();
+    else choose();
+  });
+
+  // Keep the screen on while counting, where the browser allows it
+  async function keepAwake() {
+    try {
+      if ('wakeLock' in navigator && !wake && document.visibilityState === 'visible') {
+        wake = await navigator.wakeLock.request('screen');
+        wake.addEventListener('release', () => { wake = null; });
+      }
+    } catch (e) { wake = null; }
+  }
+  function releaseAwake() { try { if (wake) wake.release(); } catch (e) {} wake = null; }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !want) return;
+    keepAwake();
+    if (device && !device.gatt.connected && !busy) { retry = 0; connect(); }
+  });
+
+  // Bluefy adds Bluetooth support to the page; check after it has had a moment
+  setTimeout(() => { if (!navigator.bluetooth) $('nobt').hidden = false; }, 800);
+
+  render();
+})();
+</script>
+</body>
+</html>
