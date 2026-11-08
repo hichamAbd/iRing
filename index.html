@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono&family=Young+Serif&display=swap">
 <style>
-/* Layout: one narrow phone column; the 33-bead ring is the hero, stats and history below, raw log tucked away */
+/* Layout: one narrow phone column; the 33-bead ring is the hero, ring controls and history below, raw log tucked away */
 :root{
   --bg:#f2f5f3; --surface:#ffffff; --ink:#16231e; --muted:#5a6a63; --line:#d6dfda;
   --accent:#94661c; --bead:#d2dbd6; --ok:#2c7a4c; --warn:#a85f16; --bad:#b03636;
@@ -36,7 +36,7 @@ body{
 main{ max-width:460px; margin:0 auto; display:flex; flex-direction:column; gap:22px }
 header{ display:flex; align-items:center; justify-content:space-between; gap:12px }
 h1{ font-family:var(--f-display); font-weight:400; font-size:1.55rem; margin:0; text-wrap:balance }
-h2{ font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:700; margin:0 0 10px }
+h2{ font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:700; margin:0 }
 
 .pill{ display:inline-flex; align-items:center; gap:7px; font-size:.8rem; font-weight:700; padding:5px 11px;
   border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--muted); white-space:nowrap }
@@ -58,15 +58,44 @@ h2{ font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; color:var(
 @keyframes bump{ from{ transform:scale(1.1) } to{ transform:none } }
 .round{ color:var(--muted); font-size:.9rem; margin-top:8px; max-width:12rem }
 
-button{ font:inherit; font-weight:700; border-radius:12px; padding:13px 16px; border:1px solid var(--line);
+button{ font:inherit; font-weight:700; border-radius:12px; padding:12px 16px; border:1px solid var(--line);
   background:var(--surface); color:var(--ink); cursor:pointer }
 button.primary{ width:100%; background:var(--ink); border-color:var(--ink); color:var(--bg) }
-button:focus-visible{ outline:3px solid var(--accent); outline-offset:2px }
+button:focus-visible, input:focus-visible, select:focus-visible{ outline:3px solid var(--accent); outline-offset:2px }
+button:disabled, input:disabled, select:disabled{ opacity:.45; cursor:not-allowed }
+button.on{ border-color:var(--accent); color:var(--accent) }
+button.secondary{ width:100%; margin-top:-10px }
+
+input[type="number"], input[type="text"], select{
+  font:inherit; font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+  background:var(--surface); color:var(--ink); min-width:0 }
+input[type="checkbox"]{ width:22px; height:22px; accent-color:var(--accent); margin:0; flex:none }
 
 .stats{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px }
 .stat{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; min-width:0 }
 .stat .k{ font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700 }
 .stat .v{ font-family:var(--f-display); font-size:1.4rem; font-variant-numeric:tabular-nums; overflow-wrap:anywhere }
+
+.block{ border-top:1px solid var(--line); padding-top:16px; display:flex; flex-direction:column; gap:12px }
+.row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+.row > button{ flex:1 1 8rem }
+.inline{ display:flex; gap:8px; align-items:center }
+.inline input[type="number"]{ width:6.5rem }
+.inline button{ flex:1 }
+.check{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0 }
+.status{ color:var(--muted); font-size:.9rem; margin:0; font-variant-numeric:tabular-nums }
+.status[data-kind="ok"]{ color:var(--ok) }
+.status[data-kind="error"]{ color:var(--bad) }
+
+.prayers{ list-style:none; margin:0; padding:0; display:grid; gap:2px }
+.prayers li{ display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:14px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line) }
+.prayers li:last-child{ border-bottom:0 }
+.prayers .time{ font-family:var(--f-mono); font-size:.9rem; color:var(--muted); font-variant-numeric:tabular-nums }
+
+details.sub summary{ cursor:pointer; font-weight:700; font-size:.92rem }
+details.sub .inner{ display:flex; flex-direction:column; gap:10px; margin-top:10px }
+.coords{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.coords label{ display:flex; flex-direction:column; gap:4px; font-size:.8rem; color:var(--muted); min-width:0 }
 
 .week{ list-style:none; margin:0; padding:0; display:grid; gap:7px }
 .week li{ display:grid; grid-template-columns:3.6rem minmax(0,1fr) 3.4rem; align-items:center; gap:10px; font-variant-numeric:tabular-nums }
@@ -74,6 +103,13 @@ button:focus-visible{ outline:3px solid var(--accent); outline-offset:2px }
 .week .n{ text-align:right; font-weight:700 }
 .bar{ height:8px; background:var(--bead); border-radius:4px; overflow:hidden }
 .bar i{ display:block; height:100%; width:0; background:var(--accent); border-radius:4px }
+
+.sessions{ list-style:none; margin:0; padding:0; display:grid; gap:0 }
+.sessions li{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums }
+.sessions li:last-child{ border-bottom:0 }
+.sessions .when{ font-size:.92rem }
+.sessions .tag{ font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); font-weight:700; margin-left:6px }
+.sessions .n{ font-family:var(--f-display); font-size:1.15rem }
 
 details.log{ border-top:1px solid var(--line); padding-top:14px }
 details.log summary{ font-weight:700; cursor:pointer }
@@ -88,7 +124,6 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
 .msg:empty{ display:none }
 .msg[data-kind="error"]{ color:var(--bad) }
 .msg[data-kind="ok"]{ color:var(--ok) }
-button.secondary{ width:100%; margin-top:-10px }
 
 @media (prefers-reduced-motion: reduce){
   .bead{ transition:none }
@@ -119,14 +154,82 @@ button.secondary{ width:100%; margin-top:-10px }
 
   <section class="stats" aria-label="Summary">
     <div class="stat"><span class="k">Today</span><span id="today" class="v">0</span></div>
+    <div class="stat"><span class="k">Battery</span><span id="battery" class="v">–</span></div>
     <div class="stat"><span class="k">Last press</span><span id="lastPress" class="v">–</span></div>
-    <div class="stat"><span class="k">Reconnects</span><span id="reconnects" class="v">0</span></div>
   </section>
 
-  <section aria-labelledby="weekTitle">
+  <section class="block" aria-labelledby="ringTitle">
+    <h2 id="ringTitle">Ring</h2>
+    <div class="row">
+      <button id="clockBtn" type="button" data-ring>Set clock</button>
+      <button id="flipBtn" type="button" data-ring>Flip display</button>
+      <button id="findBtn" type="button" data-ring>Find my ring</button>
+    </div>
+    <p id="ringStatus" class="status">Connect to use these.</p>
+  </section>
+
+  <section class="block" aria-labelledby="customTitle">
+    <h2 id="customTitle">Custom tally</h2>
+    <p class="note">The ring counts down to your target, shows a small icon while it runs, and vibrates when you reach it.</p>
+    <div class="inline">
+      <input id="target" type="number" inputmode="numeric" min="1" max="9999" value="33" aria-label="Target count" data-ring>
+      <button id="customStart" type="button" data-ring>Start</button>
+      <button id="customStop" type="button" data-ring>Stop</button>
+    </div>
+    <p id="customStatus" class="status">Not running.</p>
+  </section>
+
+  <section class="block" aria-labelledby="vibTitle">
+    <h2 id="vibTitle">Vibrate on milestones</h2>
+    <label class="check"><span>Every 33</span><input id="vib33" type="checkbox" data-ring data-needs="vib"></label>
+    <label class="check"><span>Every 100</span><input id="vib100" type="checkbox" data-ring data-needs="vib"></label>
+  </section>
+
+  <section class="block" aria-labelledby="prayerTitle">
+    <h2 id="prayerTitle">Prayer reminders</h2>
+    <ul class="prayers" id="prayers"></ul>
+    <p class="note">The ring works out these times from the location it was last given. If they look wrong for your city, add a location below.</p>
+    <details class="sub">
+      <summary>Prayer location (optional)</summary>
+      <div class="inner">
+        <p class="note">Saved only in this browser and sent only to your ring. Two decimals (about 1 km) is plenty.</p>
+        <div class="coords">
+          <label for="lat">Latitude<input id="lat" type="text" inputmode="decimal" placeholder="e.g. 48.86"></label>
+          <label for="lon">Longitude<input id="lon" type="text" inputmode="decimal" placeholder="e.g. 2.35"></label>
+        </div>
+        <div class="row">
+          <button id="geoBtn" type="button">Use my location</button>
+          <button id="locSave" type="button">Save and send</button>
+          <button id="locClear" type="button">Remove</button>
+        </div>
+        <p id="locStatus" class="status">No location saved.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="block" aria-labelledby="screenTitle">
+    <h2 id="screenTitle">Screen time (test)</h2>
+    <p class="note">How long the ring's screen stays on. This setting wasn't in your recording, so the page tries the most likely command and then asks the ring whether it changed.</p>
+    <div class="inline">
+      <select id="screenSel" aria-label="Screen time" data-ring>
+        <option value="10">10 s</option><option value="20">20 s</option><option value="30">30 s</option>
+        <option value="40">40 s</option><option value="50">50 s</option><option value="60">60 s</option>
+      </select>
+      <button id="screenBtn" type="button" data-ring>Try it</button>
+    </div>
+    <p id="screenStatus" class="status">Not tried yet.</p>
+  </section>
+
+  <section class="block" aria-labelledby="weekTitle">
     <h2 id="weekTitle">Last 7 days</h2>
     <ul id="week" class="week"></ul>
-    <p id="weekEmpty" class="note" style="margin-top:10px">Daily totals fill in as you count with this page connected.</p>
+    <p id="weekEmpty" class="note">Daily totals fill in as you count, and from sessions the ring saved while the page was closed.</p>
+  </section>
+
+  <section class="block" aria-labelledby="sessTitle">
+    <h2 id="sessTitle">Sessions from the ring</h2>
+    <ul id="sessions" class="sessions"></ul>
+    <p id="sessEmpty" class="note">Sessions the ring saved appear here after it syncs.</p>
   </section>
 
   <details class="log">
@@ -138,33 +241,43 @@ button.secondary{ width:100%; margin-top:-10px }
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The page talks to the ring the way the official app does: it confirms each count and asks for the ring's details. Your counts are saved in this browser, on this phone. Page version 6.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring, and your counts are saved in this browser only. Page version 7.</p>
 </main>
 
 <script>
 (() => {
-  // What the ring exposes (found with nRF Connect)
+  // ---------- what the ring exposes ----------
   // Full text UUIDs: Bluefy rejects short numeric ones (raw error "2")
   const SVC = '0000d0ff-0000-1000-8000-00805f9b34fb';      // main service
-  const NOTIFY = '0000d002-0000-1000-8000-00805f9b34fb';   // ring -> phone messages
-  const D004 = '0000d004-0000-1000-8000-00805f9b34fb';     // phone -> ring commands (what the official app uses)
-  const SVC2 = '02f00000-0000-0000-0000-00000000fe00';     // second vendor service (not used yet)
+  const NOTIFY = '0000d002-0000-1000-8000-00805f9b34fb';   // ring -> phone: "Qnn,…" and "R01"
+  const CMD = '0000d004-0000-1000-8000-00805f9b34fb';      // phone -> ring: "Pnn,<time>,…"
+  const SVC2 = '02f00000-0000-0000-0000-00000000fe00';     // second vendor service (not used)
+  const PRAYERS = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
   const $ = (id) => document.getElementById(id);
   const pad = (n, w = 2) => String(n).padStart(w, '0');
   const dayKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+  };
 
-  // ---------- saved state (this phone only) ----------
+  // ---------- saved state (this browser only) ----------
   const KEY = 'zikr-ring-v1';
-  function load() {
-    try {
-      const s = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (s && typeof s === 'object') return { last: s.last ?? null, lastAt: s.lastAt ?? null, days: s.days || {} };
-    } catch (e) {}
-    return { last: null, lastAt: null, days: {} };
-  }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
-  const state = load();
+  const saved = store.get(KEY, null) || {};
+  const state = {
+    last: saved.last ?? null, lastAt: saved.lastAt ?? null, days: saved.days || {},
+    liveIds: saved.liveIds || [], sessions: saved.sessions || [], prog: saved.prog || 0,
+    customLive: !!saved.customLive,
+  };
+  function save() { store.set(KEY, state); }
+  const LOCKEY = 'zikr-ring-location-v1';
+  let loc = store.get(LOCKEY, null);              // { lat: "48.86000", lon: "2.35000" } or null
+
+  // What the ring told us during this visit
+  const ring = { battery: null, fw: null, flip: null, screen: null, prayers: null, vib: null,
+                 times: null, mode: 0, prog: 0, target: null, clockAt: null };
 
   // ---------- bead ring: 1 marker bead + 33 beads ----------
   const NS = 'http://www.w3.org/2000/svg';
@@ -179,29 +292,94 @@ button.secondary{ width:100%; margin-top:-10px }
     $('beads').appendChild(c);
   }
 
+  // Prayer rows
+  PRAYERS.forEach((name, i) => {
+    const li = document.createElement('li');
+    const n = document.createElement('span'); n.textContent = name;
+    const t = document.createElement('span'); t.className = 'time'; t.id = `ptime${i}`; t.textContent = '--:--';
+    const c = document.createElement('input'); c.type = 'checkbox'; c.id = `pray${i}`;
+    c.setAttribute('aria-label', `${name} reminder`); c.dataset.ring = ''; c.dataset.needs = 'prayers';
+    c.addEventListener('change', sendPrayers);
+    li.append(n, t, c);
+    $('prayers').appendChild(li);
+  });
+
   // ---------- rendering ----------
-  let reconnects = 0;
+  const parseStamp = (s) => s && s.length >= 12
+    ? new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +(s.slice(12, 14) || 0))
+    : null;
+  const hm = (d) => d ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '–';
+
+  function batteryPct(mv) {
+    // Rough curve for a small lithium cell; the ring only reports millivolts
+    const pts = [[3500, 0], [3600, 8], [3700, 25], [3800, 45], [3900, 62], [4000, 78], [4100, 92], [4180, 100]];
+    if (mv <= pts[0][0]) return 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (mv <= pts[i][0]) {
+        const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+        return Math.round(y0 + (y1 - y0) * (mv - x0) / (x1 - x0));
+      }
+    }
+    return 100;
+  }
+
   function render() {
-    const n = state.last ?? 0;
+    const custom = ring.mode === 2;
+    const n = custom ? ring.prog : (state.last ?? 0);
     const el = $('count');
     if (el.textContent !== String(n)) {
       el.textContent = n;
       el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
     }
     const filled = n === 0 ? 0 : ((n - 1) % 33) + 1;
-    beads.forEach((b, i) => {
-      b.classList.toggle('on', i < filled);
-      b.classList.toggle('cur', i === filled - 1);
-    });
-    $('round').textContent = n === 0
+    beads.forEach((b, i) => { b.classList.toggle('on', i < filled); b.classList.toggle('cur', i === filled - 1); });
+    if (custom) $('round').textContent = `Custom tally · ${n} of ${ring.target || '?'}`;
+    else $('round').textContent = n === 0
       ? (want ? 'Press the ring to begin' : 'Connect, then press the ring')
       : `Round ${Math.floor((n - 1) / 33) + 1} · ${filled} of 33`;
+
     $('today').textContent = state.days[dayKey()] || 0;
-    $('lastPress').textContent = state.lastAt
-      ? new Date(state.lastAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-      : '–';
-    $('reconnects').textContent = reconnects;
+    $('lastPress').textContent = state.lastAt ? hm(new Date(state.lastAt)) : '–';
+    $('battery').textContent = ring.battery ? `${batteryPct(ring.battery)}%` : '–';
+    $('battery').title = ring.battery ? `${(ring.battery / 1000).toFixed(2)} V (estimate)` : '';
+
+    renderControls();
     renderWeek();
+    renderSessions();
+  }
+
+  function renderControls() {
+    const live = !!cmdChr;
+    document.querySelectorAll('[data-ring]').forEach((e) => {
+      const needs = e.dataset.needs;
+      e.disabled = !live || (needs ? ring[needs] == null : false);
+    });
+
+    const bits = [];
+    if (ring.clockAt) bits.push(`Clock set ${hm(new Date(ring.clockAt))}`);
+    if (ring.flip != null) bits.push(ring.flip === '1' ? 'Display flipped' : 'Display normal');
+    if (ring.fw) bits.push(`Firmware ${ring.fw}`);
+    $('ringStatus').textContent = live ? (bits.join(' · ') || 'Connected.') : 'Connect to use these.';
+    $('findBtn').textContent = finding ? 'Stop vibrating' : 'Find my ring';
+    $('findBtn').classList.toggle('on', finding);
+
+    const cs = $('customStatus');
+    if (ring.mode === 2) cs.textContent = `Running: ${ring.prog} of ${ring.target || '?'}.`;
+    else if (ring.mode === 4) cs.textContent = `Finished: ${ring.target || ring.prog} of ${ring.target || ring.prog}.`;
+    else if (ring.mode === 3) cs.textContent = 'Stopped.';
+    else cs.textContent = 'Not running.';
+    cs.dataset.kind = ring.mode === 4 ? 'ok' : '';
+
+    if (ring.vib) { $('vib33').checked = ring.vib[0] === '1'; $('vib100').checked = ring.vib[1] === '1'; }
+    PRAYERS.forEach((_, i) => {
+      if (ring.prayers && ring.prayers[i]) $(`pray${i}`).checked = ring.prayers[i][0] === '1';
+      $(`ptime${i}`).textContent = (ring.times && ring.times[i]) || '--:--';
+    });
+    if (ring.screen && document.activeElement !== $('screenSel')) {
+      const opt = $('screenSel').querySelector(`option[value="${ring.screen}"]`);
+      if (opt) $('screenSel').value = String(ring.screen);
+    }
+    $('locStatus').textContent = loc ? `Saved: ${loc.lat}, ${loc.lon}.` : 'No location saved.';
   }
 
   function renderWeek() {
@@ -229,44 +407,132 @@ button.secondary{ width:100%; margin-top:-10px }
     $('weekEmpty').hidden = max > 0;
   }
 
+  function renderSessions() {
+    const ul = $('sessions');
+    ul.textContent = '';
+    const list = state.sessions.slice().sort((a, b) => (b.end || '').localeCompare(a.end || '')).slice(0, 15);
+    for (const s of list) {
+      const li = document.createElement('li');
+      const left = document.createElement('span'); left.className = 'when';
+      const start = parseStamp(s.start), end = parseStamp(s.end);
+      left.textContent = start
+        ? `${start.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · ${hm(start)}–${hm(end)}`
+        : 'Unknown time';
+      if (s.kind === 'custom') {
+        const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = 'Custom';
+        left.appendChild(tag);
+      }
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = s.count;
+      li.append(left, n);
+      ul.appendChild(li);
+    }
+    $('sessEmpty').hidden = list.length > 0;
+  }
+
   // ---------- counting ----------
-  // The ring sends its running total, so presses made while disconnected are caught up at the next message.
-  function applyCount(n, fromPress) {
+  function addToday(delta, when) {
+    if (delta <= 0) return;
+    const k = dayKey(when || new Date());
+    state.days[k] = (state.days[k] || 0) + delta;
+    if (!when) state.lastAt = Date.now();
+  }
+
+  // Main tally: the ring sends its running total, so presses made while disconnected are caught up
+  function applyMain(n) {
     const prev = state.last;
     let delta = 0;
-    if (prev == null) delta = fromPress ? 1 : 0;
+    if (prev == null) delta = 1;
     else if (n > prev) delta = n - prev;
     else if (n < prev) delta = n;            // the ring was reset back to 0 since last time
-    if (delta > 0) {
-      const k = dayKey();
-      state.days[k] = (state.days[k] || 0) + delta;
-      state.lastAt = Date.now();
-    }
+    addToday(delta);
     state.last = n;
+  }
+
+  // Q07,<count>,<session id>,<mode>,<custom progress>
+  // mode 0 = normal, 2 = custom tally running, 3 = custom stopped, 4 = custom target reached
+  function onCount(f) {
+    const count = parseInt(f[1], 10) || 0;
+    const id = f[2] || '0';
+    const mode = parseInt(f[3], 10) || 0;
+    const prog = parseInt(f[4], 10) || 0;
+    send('P07', id);                                  // confirm, as the official app does
+    if (id !== '0' && !state.liveIds.includes(id)) {
+      state.liveIds.push(id);
+      if (state.liveIds.length > 60) state.liveIds.shift();
+    }
+    if (mode === 2 || mode === 4) {
+      const prev = state.prog || 0;
+      addToday(prog >= prev ? prog - prev : prog);
+      state.prog = prog; state.customLive = true;
+      ring.prog = prog;
+    } else {
+      state.prog = 0; ring.prog = 0;
+      applyMain(count);
+    }
+    ring.mode = mode;
     save();
-    render();
+  }
+
+  // Q06,<start>,<end>,<count>,<session id>,<flag>: a tally session the ring saved
+  function onSession(f) {
+    const id = f[4] || '';
+    send('P06', id);
+    if (state.sessions.some((s) => s.id === id && s.kind === 'tally')) return;
+    const count = parseInt(f[3], 10) || 0;
+    const offline = !state.liveIds.includes(id);
+    state.sessions.push({ id, kind: 'tally', start: f[1], end: f[2], count, offline });
+    if (state.sessions.length > 150) state.sessions.shift();
+    if (offline) addToday(count, parseStamp(f[2]) || parseStamp(f[1]) || new Date());
+    log('sys', `Saved session ${f[1]}–${f[2]}: ${count}${offline ? ' (counted while the page was closed)' : ''}.`);
+    save();
+  }
+
+  // Q20,<target>,<?>,<start>,<end>,<id>: a custom tally reached its target
+  function onCustomDone(f) {
+    const id = f[5] || '';
+    send('P20', id);
+    ring.mode = 4;
+    if (state.sessions.some((s) => s.id === id && s.kind === 'custom')) return;
+    const count = parseInt(f[1], 10) || 0;
+    state.sessions.push({ id, kind: 'custom', start: f[3], end: f[4], count });
+    if (!state.customLive) addToday(count, parseStamp(f[4]) || new Date());
+    state.customLive = false;
+    say(`Custom tally done: ${count}.`, 'ok');
+    save();
+  }
+
+  // Q13: general status; field 10 holds the five prayer times, 7 and 8 the custom tally
+  function onStatus(f) {
+    const times = (f[10] || '').split('#').filter(Boolean);
+    if (times.length >= 5) ring.times = times.slice(0, 5);
+    const mode = parseInt(f[7], 10);
+    const target = parseInt(f[8], 10);
+    if (target > 0) ring.target = target;
+    if (mode === 2) ring.mode = 2;
+  }
+
+  // Q25,<screen seconds>,<5 prayer reminders on#?#?>,<vibrate 33#100#?>
+  function onSettings(f) {
+    const sec = parseInt(f[1], 10);
+    if (sec > 0) ring.screen = sec;
+    const pr = (f[2] || '').split(':').map((e) => e.split('#'));
+    if (pr.length >= 5) ring.prayers = pr.slice(0, 5);
+    const vib = (f[3] || '').split('#');
+    if (vib.length >= 2) ring.vib = vib;
   }
 
   // ---------- message log ----------
   const lines = [];
+  const emptyLog = 'Nothing yet. Connect the ring and press it.';
   function log(kind, msg) {
     const d = new Date();
     const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
     lines.push(`[${t}] ${kind === 'ring' ? 'ring:' : kind === 'page' ? 'page:' : '--'} ${msg}`);
-    if (lines.length > 400) lines.shift();
-    $('log').textContent = lines.length ? lines.slice().reverse().join('\n') : 'Nothing yet. Connect the ring and press it.';
+    if (lines.length > 500) lines.shift();
+    $('log').textContent = lines.slice().reverse().join('\n');
     $('logCount').textContent = `(${lines.length})`;
   }
-  $('log').textContent = 'Nothing yet. Connect the ring and press it.';
-
-  const decoder = new TextDecoder();
-  function onBytes(dv) {
-    const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
-    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
-    const text = decoder.decode(bytes).replace(/[^\x20-\x7e]/g, '·');
-    log('ring', `${text}   [${hex}]`);
-    onMessage(text);
-  }
+  $('log').textContent = emptyLog;
 
   $('copy').addEventListener('click', () => {
     const txt = lines.join('\n');
@@ -282,30 +548,30 @@ button.secondary{ width:100%; margin-top:-10px }
   });
   $('clear').addEventListener('click', () => {
     lines.length = 0;
-    $('log').textContent = 'Nothing yet. Connect the ring and press it.';
+    $('log').textContent = emptyLog;
     $('logCount').textContent = '(0)';
   });
 
-  // ---------- Bluetooth ----------
+  // ---------- talking to the ring ----------
   let device = null, want = false, busy = false, retry = 0, timer = null, everConnected = false, wake = null;
-  let cmdChr = null, connectedAt = 0, connId = 0, helloSent = false, helloTimer = null;
+  let cmdChr = null, connectedAt = 0, connId = 0, synced = false, syncing = false, helloTimer = null;
+  let finding = false, findTimer = null;
 
-  // ---------- the ring's text protocol (read from the official app's traffic) ----------
-  // ring -> phone on D002: "Qnn,…" answers, plus "R01" right after connecting
-  // phone -> ring on D004: "Pnn,<local time YYYYMMDDHHMMSSmmm>,…"
   function stamp(d = new Date()) {
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
       `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}${pad(d.getMilliseconds(), 3)}`;
   }
+  function tz() { return (-new Date().getTimezoneOffset() / 60).toFixed(1); }
 
-  let sendChain = Promise.resolve();
+  // Writes go one at a time
+  let chain = Promise.resolve();
   function send(code, ...args) {
-    const text = [code, stamp(), ...args].join(',');
     const chr = cmdChr, myConn = connId;
-    sendChain = sendChain.then(async () => {
+    chain = chain.then(async () => {
       if (!chr || myConn !== connId) return;
-      const data = new TextEncoder().encode(text);
+      const text = [code, stamp(), ...args].join(',');
       try {
+        const data = new TextEncoder().encode(text);
         if (typeof chr.writeValueWithoutResponse === 'function') await chr.writeValueWithoutResponse(data);
         else await chr.writeValue(data);
         log('page', text);
@@ -313,46 +579,209 @@ button.secondary{ width:100%; margin-top:-10px }
         log('sys', `Could not send ${code}: ${e && e.name}: ${e && e.message}`);
       }
     });
-    return sendChain;
+    return chain;
   }
 
-  function onMessage(text) {
-    let m;
-    if ((m = /^Q07,(\d+),(\d+)/.exec(text))) {
-      send('P07', m[2]);                          // confirm each count, as the official app does
-      applyCount(parseInt(m[1], 10), true);
-    } else if (text === 'R01') {
-      hello();
-    } else if (text.startsWith('Q02,')) {
-      const f = text.split(',');
-      log('sys', `Ring info: firmware ${f[6] || '?'}, battery reading ${f[5] || '?'}.`);
+  // Send a command and wait for the ring's answer (or null after a timeout)
+  const waiters = [];
+  function ask(code, args, reply, ms = 2000) {
+    const p = new Promise((resolve) => {
+      const w = { reply, resolve };
+      w.timer = setTimeout(() => { const i = waiters.indexOf(w); if (i >= 0) waiters.splice(i, 1); resolve(null); }, ms);
+      waiters.push(w);
+    });
+    send(code, ...args);
+    return p;
+  }
+  function resolveWaiters(text) {
+    for (const w of waiters.slice()) {
+      if (text === w.reply || text.startsWith(w.reply + ',')) {
+        clearTimeout(w.timer);
+        waiters.splice(waiters.indexOf(w), 1);
+        w.resolve(text);
+      }
     }
   }
 
-  // Answer the ring's opening "R01" (or after 1.5 s without one) with a harmless info request
-  function hello() {
-    if (helloSent) return;
-    helloSent = true;
-    clearTimeout(helloTimer);
-    send('P02');
+  function onMessage(text) {
+    resolveWaiters(text);
+    const f = text.split(',');
+    switch (f[0]) {
+      case 'R01': syncRing(); break;
+      case 'Q07': onCount(f); break;
+      case 'Q06': onSession(f); break;
+      case 'Q20': onCustomDone(f); break;
+      case 'Q02': ring.battery = parseInt(f[5], 10) || null; ring.fw = f[6] || null; break;
+      case 'Q03': ring.flip = f[1]; break;
+      case 'Q13': onStatus(f); break;
+      case 'Q25': onSettings(f); break;
+    }
+    render();
   }
 
+  // The clock: this phone's time and time zone. The location fields carry the optional
+  // prayer location if one is saved here; otherwise they're left empty.
+  async function setClock() {
+    const lat = loc ? loc.lat : '', lon = loc ? loc.lon : '';
+    let r = await ask('P01', ['0', '1', tz(), lat, lon], 'Q01');
+    if (!r && !loc) r = await ask('P01', ['0', '1', tz(), '0', '0'], 'Q01');
+    if (r) { ring.clockAt = Date.now(); log('sys', 'Ring clock set from this phone.'); }
+    else log('sys', 'The ring did not confirm the clock.');
+    render();
+    return r;
+  }
+
+  // What the official app does after connecting, minus anything about you
+  async function syncRing() {
+    if (syncing || !cmdChr) return;
+    syncing = true;
+    clearTimeout(helloTimer);
+    const my = connId;
+    try {
+      await setClock();
+      if (my !== connId) return;
+      await ask('P02', [], 'Q02');               // battery and firmware
+      await ask('P13', [], 'Q13');               // prayer times, custom tally state
+      if (loc) await ask('P09', ['1', '3', '0', loc.lat, loc.lon, tz()], 'Q09');
+      await ask('P25', [], 'Q25');               // screen time, prayer reminders, milestones
+      await ask('P12', [], 'Q12', 2500);         // ask for saved sessions (they arrive as Q06)
+      synced = true;
+    } finally {
+      syncing = false;
+      render();
+    }
+  }
+
+  // ---------- controls ----------
+  $('clockBtn').addEventListener('click', () => { setClock(); });
+
+  $('flipBtn').addEventListener('click', async () => {
+    const r = await ask('P03', [], 'Q03');
+    if (!r) say('The ring did not answer the flip.', 'error');
+  });
+
+  async function stopFind() {
+    clearTimeout(findTimer);
+    finding = false; render();
+    await ask('P04', ['0'], 'Q04');
+  }
+  $('findBtn').addEventListener('click', async () => {
+    if (finding) { stopFind(); return; }
+    finding = true; render();
+    const r = await ask('P04', ['1'], 'Q04');
+    if (!r) { finding = false; render(); say('The ring did not answer.', 'error'); return; }
+    findTimer = setTimeout(stopFind, 20000);
+  });
+
+  $('customStart').addEventListener('click', async () => {
+    const target = Math.max(1, Math.min(9999, parseInt($('target').value, 10) || 33));
+    $('target').value = target;
+    const r = await ask('P19', ['1', String(target), '1', '2', '0', '0', '0'], 'Q19');
+    if (r) {
+      ring.mode = 2; ring.prog = 0; ring.target = target;
+      state.prog = 0; state.customLive = true; save();
+      say(`Custom tally started: ${target}.`, 'ok');
+    } else say('The ring did not confirm the custom tally.', 'error');
+    render();
+  });
+  $('customStop').addEventListener('click', async () => {
+    const target = ring.target || parseInt($('target').value, 10) || 33;
+    const r = await ask('P19', ['0', String(target), '1', '2', '0', '0', '0'], 'Q19');
+    if (r) { ring.mode = 3; ring.prog = 0; state.prog = 0; state.customLive = false; save(); say('Custom tally stopped.'); }
+    else say('The ring did not confirm.', 'error');
+    render();
+  });
+
+  async function sendVib() {
+    if (!ring.vib) return;
+    const v = [$('vib33').checked ? '1' : '0', $('vib100').checked ? '1' : '0', ring.vib[2] ?? '0'];
+    const r = await ask('P24', [v.join('#')], 'Q24');
+    if (r) { ring.vib = v; say('Milestones saved on the ring.', 'ok'); }
+    else { say('The ring did not confirm.', 'error'); }
+    render();
+  }
+  $('vib33').addEventListener('change', sendVib);
+  $('vib100').addEventListener('change', sendVib);
+
+  async function sendPrayers() {
+    if (!ring.prayers) return;
+    const p = ring.prayers.map((e, i) => [$(`pray${i}`).checked ? '1' : '0', e[1] ?? '+00', e[2] ?? '+00']);
+    const r = await ask('P23', [p.map((e) => e.join('#')).join(':')], 'Q23');
+    if (r) { ring.prayers = p; say('Prayer reminders saved on the ring.', 'ok'); }
+    else say('The ring did not confirm.', 'error');
+    render();
+  }
+
+  function readCoord(v, limit) {
+    const n = parseFloat(String(v).replace(',', '.'));
+    if (!isFinite(n) || Math.abs(n) > limit) return null;
+    return (Math.round(n * 100) / 100).toFixed(5);
+  }
+  $('geoBtn').addEventListener('click', () => {
+    if (!navigator.geolocation) { $('locStatus').textContent = 'This browser cannot share a location. Type it instead.'; return; }
+    $('locStatus').textContent = 'Asking this phone for its location…';
+    navigator.geolocation.getCurrentPosition((pos) => {
+      $('lat').value = (Math.round(pos.coords.latitude * 100) / 100).toFixed(2);
+      $('lon').value = (Math.round(pos.coords.longitude * 100) / 100).toFixed(2);
+      $('locStatus').textContent = 'Filled in (rounded). Tap "Save and send" to use it.';
+    }, () => {
+      $('locStatus').textContent = 'Location not available. Type it instead.';
+    }, { timeout: 10000, maximumAge: 600000 });
+  });
+  $('locSave').addEventListener('click', async () => {
+    const lat = readCoord($('lat').value, 90), lon = readCoord($('lon').value, 180);
+    if (lat == null || lon == null) { $('locStatus').textContent = 'Enter a latitude (−90 to 90) and longitude (−180 to 180).'; return; }
+    loc = { lat, lon };
+    store.set(LOCKEY, loc);
+    render();
+    if (cmdChr) {
+      await setClock();
+      await ask('P09', ['1', '3', '0', loc.lat, loc.lon, tz()], 'Q09');
+      await ask('P13', [], 'Q13');
+      say('Location sent. Prayer times updated.', 'ok');
+    }
+  });
+  $('locClear').addEventListener('click', () => {
+    loc = null; store.del(LOCKEY);
+    $('lat').value = ''; $('lon').value = '';
+    render();
+  });
+  if (loc) { $('lat').value = parseFloat(loc.lat).toFixed(2); $('lon').value = parseFloat(loc.lon).toFixed(2); }
+
+  // Screen time test: Q25 reports the screen time in seconds, next to the settings set by P23 and P24,
+  // so the most likely setter is P22 with seconds. The page checks the ring's answer afterwards.
+  $('screenBtn').addEventListener('click', async () => {
+    const sec = parseInt($('screenSel').value, 10);
+    const st = $('screenStatus');
+    st.dataset.kind = ''; st.textContent = `Trying ${sec} s…`;
+    const ack = await ask('P22', [String(sec)], 'Q22', 1500);
+    const q = await ask('P25', [], 'Q25');
+    const now = q ? parseInt(q.split(',')[1], 10) : null;
+    if (now === sec) {
+      st.dataset.kind = 'ok';
+      st.textContent = `It worked: the ring now reports ${sec} s.`;
+    } else {
+      st.dataset.kind = 'error';
+      st.textContent = `Not confirmed. The ring ${ack ? 'answered' : 'did not answer'} the command and still reports ${now ?? 'nothing'} s. Check how long the screen stays on and tell Claude.`;
+    }
+    log('sys', `Screen time test ${sec} s: ack=${ack || 'none'}, ring reports ${now ?? 'nothing'}.`);
+  });
+
+  // ---------- connection ----------
   function setStatus(s, label) { const p = $('status'); p.dataset.s = s; p.textContent = label; }
-  function updateButton() { $('main').textContent = want ? 'Stop' : 'Connect ring'; }
+  function updateButton() { $('main').textContent = want ? 'Disconnect' : 'Connect ring'; }
   function say(text, kind) { const m = $('msg'); m.textContent = text || ''; m.dataset.kind = kind || ''; }
 
   async function choose(showAll) {
     if (!navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== 'function') {
       $('nobt').hidden = false;
       say('This browser has no Bluetooth. Open the page in the Bluefy app.', 'error');
-      log('sys', 'navigator.bluetooth is missing.');
       return;
     }
     const opts = showAll
       ? { acceptAllDevices: true, optionalServices: [SVC, SVC2] }
       : { filters: [{ namePrefix: 'Zikr' }], optionalServices: [SVC, SVC2] };
     say('Opening the Bluetooth device list…');
-    log('sys', showAll ? 'Asking for any device.' : 'Asking for a device named Zikr…');
     const hint = setTimeout(() => {
       say('No list showed up? In iPhone Settings → Bluefy, turn on Bluetooth, then reload this page.', 'error');
     }, 6000);
@@ -390,22 +819,22 @@ button.secondary{ width:100%; margin-top:-10px }
       connectedAt = Date.now();
       const svc = await server.getPrimaryService(SVC);
       const chr = await svc.getCharacteristic(NOTIFY);
-      cmdChr = await svc.getCharacteristic(D004);
-      connId++; helloSent = false;
+      cmdChr = await svc.getCharacteristic(CMD);
+      connId++; synced = false;
       chr.removeEventListener('characteristicvaluechanged', onNotify);
       chr.addEventListener('characteristicvaluechanged', onNotify);
       await chr.startNotifications();
-      if (everConnected) reconnects++;
       everConnected = true;
       retry = 0;
-      setStatus('live', 'Listening');
+      setStatus('live', 'Connected');
       say('Connected. Press the ring.', 'ok');
-      log('sys', 'Connected, listening for presses.');
+      log('sys', 'Connected.');
       keepAwake();
       render();
       clearTimeout(helloTimer);
-      helloTimer = setTimeout(hello, 1500);
+      helloTimer = setTimeout(syncRing, 1500);   // if the ring doesn't send R01, sync anyway
     } catch (e) {
+      cmdChr = null;
       log('sys', `Connection failed: ${e && e.name}: ${e && e.message}`);
       say(`Couldn't connect (${(e && e.message) || 'unknown error'}). Trying again…`, 'error');
       if (want) { setStatus('retry', 'Reconnecting…'); later(); }
@@ -414,15 +843,24 @@ button.secondary{ width:100%; margin-top:-10px }
     }
   }
 
-  function onNotify(e) { onBytes(e.target.value); }
+  const decoder = new TextDecoder();
+  function onNotify(e) {
+    const dv = e.target.value;
+    const bytes = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
+    const text = decoder.decode(bytes).replace(/[^\x20-\x7e]/g, '·');
+    log('ring', text);
+    onMessage(text);
+  }
 
   function onDrop() {
-    if (!want) { setStatus('idle', 'Not connected'); return; }
+    cmdChr = null; clearTimeout(helloTimer);
+    finding = false; clearTimeout(findTimer);
+    if (!want) { setStatus('idle', 'Not connected'); render(); return; }
     const secs = connectedAt ? (Date.now() - connectedAt) / 1000 : 0;
     log('sys', `The ring dropped the connection after ${secs.toFixed(1)} s.`);
-    cmdChr = null; clearTimeout(helloTimer);
     say('The ring hung up. Reconnecting…');
     setStatus('retry', 'Reconnecting…');
+    render();
     later();
   }
 
@@ -438,10 +876,11 @@ button.secondary{ width:100%; margin-top:-10px }
     want = false;
     clearTimeout(timer);
     try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (e) {}
+    cmdChr = null;
     releaseAwake();
     setStatus('idle', 'Not connected');
     say('');
-    log('sys', 'Stopped.');
+    log('sys', 'Disconnected.');
     updateButton(); render();
   }
 
@@ -452,7 +891,6 @@ button.secondary{ width:100%; margin-top:-10px }
       else choose(false);
     } catch (e) {
       say(`Something went wrong: ${e && e.message}`, 'error');
-      log('sys', `Button error: ${e && e.message}`);
     }
   });
   $('all').addEventListener('click', () => choose(true));
@@ -462,9 +900,6 @@ button.secondary{ width:100%; margin-top:-10px }
     const r = e.reason;
     say(`Page error: ${(r && r.message) || r}`, 'error');
   });
-  if (window.top !== window) {
-    say('This page is inside another page. Open hichamabd.github.io/iRing directly in Bluefy.', 'error');
-  }
 
   // Keep the screen on while counting, where the browser allows it
   async function keepAwake() {
