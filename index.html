@@ -98,6 +98,11 @@ input[type="checkbox"]{ width:22px; height:22px; accent-color:var(--accent); mar
 details.sub summary{ cursor:pointer; font-weight:700; font-size:.92rem }
 details.sub .inner{ display:flex; flex-direction:column; gap:10px; margin-top:10px }
 .coords{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.mapwrap{ position:relative; height:320px; max-width:100%; border-radius:12px; overflow:hidden; border:1px solid var(--line); background:var(--bead) }
+.map{ position:absolute; inset:0 }
+.pin{ position:absolute; left:50%; top:50%; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%;
+  border:3px solid var(--accent); box-shadow:0 0 0 2px #ffffff, 0 1px 4px rgba(0,0,0,.4); pointer-events:none; z-index:1000 }
+.pin::after{ content:""; position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px 0 0 -2px; border-radius:50%; background:var(--accent) }
 .coords label{ display:flex; flex-direction:column; gap:4px; font-size:.8rem; color:var(--muted); min-width:0 }
 
 .week{ list-style:none; margin:0; padding:0; display:grid; gap:7px }
@@ -201,13 +206,24 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <details class="sub">
       <summary>Prayer location (optional)</summary>
       <div class="inner">
-        <p class="note">Saved only in this browser and sent only to your ring. Two decimals (about 1 km) is plenty.</p>
+        <p class="note">Saved only in this browser and sent only to your ring. Your city is precise enough.</p>
+        <button id="mapBtn" type="button">Pick on a map</button>
+        <div id="mapWrap" class="mapwrap" hidden>
+          <div id="map" class="map" aria-label="Map. Move it so the pin sits on your city."></div>
+          <div class="pin" aria-hidden="true"></div>
+        </div>
+        <div id="mapTools" class="inner" hidden>
+          <p class="note">Move and zoom the map until the pin sits on your city: <strong id="mapCoords">–</strong>. The map pictures come from OpenStreetMap, which sees the area you look at, not your position.</p>
+          <div class="row">
+            <button id="mapUse" type="button">Use this spot</button>
+            <button id="mapClose" type="button">Close map</button>
+          </div>
+        </div>
         <div class="coords">
           <label for="lat">Latitude<input id="lat" type="text" inputmode="decimal" placeholder="e.g. 48.86"></label>
           <label for="lon">Longitude<input id="lon" type="text" inputmode="decimal" placeholder="e.g. 2.35"></label>
         </div>
         <div class="row">
-          <button id="geoBtn" type="button">Use my location</button>
           <button id="locSave" type="button">Save and send</button>
           <button id="locClear" type="button">Remove</button>
         </div>
@@ -250,7 +266,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring, and your counts are saved in this browser only. Page version 8.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring (and map pictures, only if you open the map). Your counts are saved in this browser only. Page version 9.</p>
 </main>
 
 <script>
@@ -749,18 +765,54 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     if (!isFinite(n) || Math.abs(n) > limit) return null;
     return (Math.round(n * 100) / 100).toFixed(5);
   }
-  $('geoBtn').addEventListener('click', () => {
-    if (!navigator.geolocation) { $('locStatus').textContent = 'This browser cannot share a location. Type it instead.'; return; }
-    $('locStatus').textContent = 'Asking this phone for its location…';
-    navigator.geolocation.getCurrentPosition((pos) => {
-      $('lat').value = (Math.round(pos.coords.latitude * 100) / 100).toFixed(2);
-      $('lon').value = (Math.round(pos.coords.longitude * 100) / 100).toFixed(2);
-      $('locStatus').textContent = 'Filled in (rounded). Tap "Save and send" to use it.';
-    }, () => {
-      $('locStatus').textContent = 'Location not available. Type it instead.';
-    }, { timeout: 10000, maximumAge: 600000 });
+  // Map picker: loads only when asked, starts on the saved spot or the whole world, never on your position
+  let map = null;
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
+      document.head.appendChild(css);
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('map failed to load'));
+      document.head.appendChild(s);
+    });
+  }
+  function mapCenter() { const c = map.getCenter().wrap(); return { lat: c.lat.toFixed(2), lon: c.lng.toFixed(2) }; }
+  function showCenter() { const c = mapCenter(); $('mapCoords').textContent = `${c.lat}, ${c.lon}`; }
+  function closeMap() { $('mapWrap').hidden = true; $('mapTools').hidden = true; $('mapBtn').hidden = false; }
+  $('mapBtn').addEventListener('click', async () => {
+    $('locStatus').textContent = 'Loading the map…';
+    try { await loadLeaflet(); }
+    catch (e) { $('locStatus').textContent = 'The map could not load. Type the latitude and longitude instead.'; return; }
+    $('mapWrap').hidden = false; $('mapTools').hidden = false; $('mapBtn').hidden = true;
+    if (!map) {
+      const has = loc && isFinite(parseFloat(loc.lat));
+      map = window.L.map('map', { zoomControl: true, worldCopyJump: true })
+        .setView(has ? [parseFloat(loc.lat), parseFloat(loc.lon)] : [25, 15], has ? 9 : 2);
+      window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 14, attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+      map.on('move', showCenter);
+    } else {
+      map.invalidateSize();
+    }
+    showCenter();
+    renderControls();
   });
-  $('locSave').addEventListener('click', async () => {
+  $('mapUse').addEventListener('click', () => {
+    const c = mapCenter();
+    $('lat').value = c.lat; $('lon').value = c.lon;
+    closeMap();
+    saveLocation();
+  });
+  $('mapClose').addEventListener('click', () => { closeMap(); renderControls(); });
+
+  $('locSave').addEventListener('click', () => saveLocation());
+  async function saveLocation() {
     const lat = readCoord($('lat').value, 90), lon = readCoord($('lon').value, 180);
     if (lat == null || lon == null) { $('locStatus').textContent = 'Enter a latitude (−90 to 90) and longitude (−180 to 180).'; return; }
     loc = { lat, lon };
@@ -771,8 +823,10 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
       await ask('P09', ['1', '3', '0', loc.lat, loc.lon, tz()], 'Q09');
       await ask('P13', [], 'Q13');
       say('Location sent. Prayer times updated.', 'ok');
+    } else {
+      say('Location saved. It goes to the ring next time it connects.', 'ok');
     }
-  });
+  }
   $('locClear').addEventListener('click', () => {
     loc = null; store.del(LOCKEY);
     $('lat').value = ''; $('lon').value = '';
