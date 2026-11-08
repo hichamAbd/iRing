@@ -82,6 +82,9 @@ input[type="checkbox"]{ width:22px; height:22px; accent-color:var(--accent); mar
 .inline{ display:flex; gap:8px; align-items:center }
 .inline input[type="number"]{ width:6.5rem }
 .inline button{ flex:1 }
+.inline .grow{ flex:1 1 auto }
+.inline label.grow + input[type="number"]{ width:6.5rem }
+.inline label.grow ~ button{ flex:0 0 auto }
 .check{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:6px 0 }
 .status{ color:var(--muted); font-size:.9rem; margin:0; font-variant-numeric:tabular-nums }
 .status[data-kind="ok"]{ color:var(--ok) }
@@ -183,6 +186,12 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <h2 id="vibTitle">Vibrate on milestones</h2>
     <label class="check"><span>Every 33</span><input id="vib33" type="checkbox" data-ring data-needs="vib"></label>
     <label class="check"><span>Every 100</span><input id="vib100" type="checkbox" data-ring data-needs="vib"></label>
+    <div class="inline">
+      <label for="vibCustom" class="grow">Custom, every</label>
+      <input id="vibCustom" type="number" inputmode="numeric" min="0" max="9999" value="0" data-ring data-needs="vib">
+      <button id="vibCustomSave" type="button" data-ring data-needs="vib">Save</button>
+    </div>
+    <p id="vibStatus" class="status">Set 0 to turn the custom milestone off.</p>
   </section>
 
   <section class="block" aria-labelledby="prayerTitle">
@@ -241,7 +250,7 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     <pre id="log"></pre>
   </details>
 
-  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring, and your counts are saved in this browser only. Page version 7.</p>
+  <p class="note">The clock comes from this phone. Nothing leaves the phone except messages to your ring, and your counts are saved in this browser only. Page version 8.</p>
 </main>
 
 <script>
@@ -370,7 +379,10 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     else cs.textContent = 'Not running.';
     cs.dataset.kind = ring.mode === 4 ? 'ok' : '';
 
-    if (ring.vib) { $('vib33').checked = ring.vib[0] === '1'; $('vib100').checked = ring.vib[1] === '1'; }
+    if (ring.vib) {
+      $('vib33').checked = ring.vib[0] === '1'; $('vib100').checked = ring.vib[1] === '1';
+      if (document.activeElement !== $('vibCustom')) $('vibCustom').value = parseInt(ring.vib[2], 10) || 0;
+    }
     PRAYERS.forEach((_, i) => {
       if (ring.prayers && ring.prayers[i]) $(`pray${i}`).checked = ring.prayers[i][0] === '1';
       $(`ptime${i}`).textContent = (ring.times && ring.times[i]) || '--:--';
@@ -692,16 +704,36 @@ pre#log{ font-family:var(--f-mono); font-size:.74rem; line-height:1.55; backgrou
     render();
   });
 
-  async function sendVib() {
+  // P24,<33 on>#<100 on>#<custom value, 0 = off>; Q25's last field reports the same three
+  async function sendVib(custom) {
     if (!ring.vib) return;
-    const v = [$('vib33').checked ? '1' : '0', $('vib100').checked ? '1' : '0', ring.vib[2] ?? '0'];
+    const third = custom != null ? String(custom) : (ring.vib[2] ?? '0');
+    const v = [$('vib33').checked ? '1' : '0', $('vib100').checked ? '1' : '0', third];
     const r = await ask('P24', [v.join('#')], 'Q24');
-    if (r) { ring.vib = v; say('Milestones saved on the ring.', 'ok'); }
-    else { say('The ring did not confirm.', 'error'); }
+    if (!r) { say('The ring did not confirm.', 'error'); render(); return; }
+    ring.vib = v;
+    if (custom == null) { say('Milestones saved on the ring.', 'ok'); render(); return; }
+    // Ask the ring what it stored, since this field wasn't in the recording
+    const q = await ask('P25', [], 'Q25');
+    const now = q ? ((q.split(',')[3] || '').split('#')[2] ?? null) : null;
+    const st = $('vibStatus');
+    if (now === third) {
+      st.dataset.kind = 'ok';
+      st.textContent = custom === 0 ? 'Custom milestone off.' : `Saved: the ring vibrates every ${custom}.`;
+    } else {
+      st.dataset.kind = 'error';
+      st.textContent = `Not confirmed: the ring reports ${now ?? 'nothing'}. Send Claude the log.`;
+    }
+    log('sys', `Custom milestone ${custom}: ring reports ${now ?? 'nothing'}.`);
     render();
   }
-  $('vib33').addEventListener('change', sendVib);
-  $('vib100').addEventListener('change', sendVib);
+  $('vib33').addEventListener('change', () => sendVib());
+  $('vib100').addEventListener('change', () => sendVib());
+  $('vibCustomSave').addEventListener('click', () => {
+    const n = Math.max(0, Math.min(9999, parseInt($('vibCustom').value, 10) || 0));
+    $('vibCustom').value = n;
+    sendVib(n);
+  });
 
   async function sendPrayers() {
     if (!ring.prayers) return;
