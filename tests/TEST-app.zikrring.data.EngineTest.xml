@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="app.zikrring.data.EngineTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-11-13T11:04:10" hostname="runnervm8axu0" time="0.19">
+  <properties/>
+  <testcase name="deletingACounterKeepsItsCountsInTheTotal" classname="app.zikrring.data.EngineTest" time="0.073"/>
+  <testcase name="savedSessionAddsPressesMadeWhileNotListening" classname="app.zikrring.data.EngineTest" time="0.009"/>
+  <testcase name="freePressesBecomeOneSessionUntilIdle" classname="app.zikrring.data.EngineTest" time="0.025"/>
+  <testcase name="sortingIntoCountersAndTheGeneralTally" classname="app.zikrring.data.EngineTest" time="0.015"/>
+  <testcase name="customTallyStartedElsewhereEndsInTheInbox" classname="app.zikrring.data.EngineTest" time="0.003"/>
+  <testcase name="firstSightOfARingSessionCountsEverythingAsMissed" classname="app.zikrring.data.EngineTest" time="0.0"/>
+  <testcase name="dailyCounterStartsAgainEachDay" classname="app.zikrring.data.EngineTest" time="0.001"/>
+  <testcase name="streakCountsDaysInARow" classname="app.zikrring.data.EngineTest" time="0.0"/>
+  <testcase name="duplicateCountsAreIgnoredAndResetClosesTheSession" classname="app.zikrring.data.EngineTest" time="0.0"/>
+  <testcase name="jsonRoundTrip" classname="app.zikrring.data.EngineTest" time="0.034"/>
+  <testcase name="sessionSortedLaterStillCountsForAOneOffCounterCreatedAfterIt" classname="app.zikrring.data.EngineTest" time="0.0"/>
+  <testcase name="completionFromCustomDoneIsCountedOnce" classname="app.zikrring.data.EngineTest" time="0.007"/>
+  <testcase name="savedSessionNeverSeenGoesToTheInbox" classname="app.zikrring.data.EngineTest" time="0.0"/>
+  <testcase name="counterRunsOnTheRingAndRemembersWhatsLeft" classname="app.zikrring.data.EngineTest" time="0.016"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
