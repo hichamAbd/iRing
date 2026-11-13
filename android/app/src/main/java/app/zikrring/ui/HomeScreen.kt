@@ -95,7 +95,7 @@ fun HomeScreen(d: AppData, s: RingState, now: Long, goTo: (String) -> Unit) {
 @Composable
 private fun DialSection(d: AppData, s: RingState, now: Long) {
     val e = Graph.engine
-    val run = rememberRunner()
+    val act = rememberRunner()
     val r = d.run
     val f = d.free
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -116,7 +116,7 @@ private fun DialSection(d: AppData, s: RingState, now: Long) {
                     else "Il sera à trier quand il se terminera.",
                 )
                 if (r.counterId != null) {
-                    OutlinedButton(onClick = { run { if (Graph.ring.stopRun()) null else "La bague n'a pas confirmé l'arrêt." } }, enabled = s.connected) {
+                    OutlinedButton(onClick = { act { if (Graph.ring.stopRun()) null else "La bague n'a pas confirmé l'arrêt." } }, enabled = s.connected) {
                         Icon(Icons.Default.Close, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Arrêter (ce qui reste est gardé)")
@@ -160,7 +160,7 @@ private fun BigNumber(n: Int) {
 @Composable
 private fun QuickCounters(d: AppData, s: RingState, now: Long, goTo: (String) -> Unit) {
     val e = Graph.engine
-    val run = rememberRunner()
+    val act = rememberRunner()
     SectionCard("Lancer sur la bague") {
         val counters = e.countersByUse(d)
         if (counters.isEmpty()) {
@@ -185,11 +185,11 @@ private fun QuickCounters(d: AppData, s: RingState, now: Long, goTo: (String) ->
                     )
                 }
                 if (running) {
-                    FilledTonalIconButton(onClick = { run { if (Graph.ring.stopRun()) null else "La bague n'a pas confirmé l'arrêt." } }, enabled = s.connected) {
+                    FilledTonalIconButton(onClick = { act { if (Graph.ring.stopRun()) null else "La bague n'a pas confirmé l'arrêt." } }, enabled = s.connected) {
                         Icon(Icons.Default.Close, "Arrêter")
                     }
                 } else {
-                    FilledTonalIconButton(onClick = { run { Graph.ring.startCounter(c.id) } }, enabled = s.connected && left > 0) {
+                    FilledTonalIconButton(onClick = { act { Graph.ring.startCounter(c.id) } }, enabled = s.connected && left > 0) {
                         Icon(Icons.Default.PlayArrow, "Lancer")
                     }
                 }

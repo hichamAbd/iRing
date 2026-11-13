@@ -53,7 +53,7 @@ import app.zikrring.ring.RingState
 @Composable
 fun CountersScreen(d: AppData, s: RingState, now: Long) {
     val e = Graph.engine
-    val run = rememberRunner()
+    val act = rememberRunner()
     var creating by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Counter?>(null) }
     var manualFor by remember { mutableStateOf<Counter?>(null) }
@@ -88,8 +88,8 @@ fun CountersScreen(d: AppData, s: RingState, now: Long) {
             items(ordered, key = { it.id }) { c ->
                 CounterCard(
                     c, d, s, now,
-                    onStart = { run { Graph.ring.startCounter(c.id) } },
-                    onStop = { run { if (Graph.ring.stopRun()) null else "La bague n'a pas confirmé l'arrêt." } },
+                    onStart = { act { Graph.ring.startCounter(c.id) } },
+                    onStop = { act { if (Graph.ring.stopRun()) null else "La bague n'a pas confirmé l'arrêt." } },
                     onEdit = { editing = c },
                     onManual = { manualFor = c },
                     onDelete = { deleting = c },
@@ -124,7 +124,7 @@ fun CountersScreen(d: AppData, s: RingState, now: Long) {
             confirm = "Supprimer",
             onDismiss = { deleting = null },
         ) {
-            if (!e.deleteCounter(c.id)) run { "Arrêtez-le d'abord sur la bague." }
+            if (!e.deleteCounter(c.id)) act { "Arrêtez-le d'abord sur la bague." }
         }
     }
 }

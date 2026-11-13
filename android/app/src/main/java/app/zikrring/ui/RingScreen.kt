@@ -114,7 +114,7 @@ private fun rememberBusyRunner(): Pair<Boolean, ((suspend () -> String?) -> Unit
 @Composable
 private fun StatusCard(d: AppData, s: RingState) {
     val actions = LocalActions.current
-    val (busy, run) = rememberBusyRunner()
+    val (busy, act) = rememberBusyRunner()
     val ring = d.ring
     SectionCard("Ma bague") {
         if (ring == null) {
@@ -136,14 +136,14 @@ private fun StatusCard(d: AppData, s: RingState) {
             },
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton(onClick = { run { Graph.ring.findRing(!s.finding) } }, enabled = s.connected && !busy) {
+            FilledTonalButton(onClick = { act { Graph.ring.findRing(!s.finding) } }, enabled = s.connected && !busy) {
                 Text(if (s.finding) "Arrêter la vibration" else "Faire vibrer")
             }
-            FilledTonalButton(onClick = { run { Graph.ring.flipDisplay() } }, enabled = s.connected && !busy) {
+            FilledTonalButton(onClick = { act { Graph.ring.flipDisplay() } }, enabled = s.connected && !busy) {
                 Text("Retourner l'écran")
             }
             FilledTonalButton(
-                onClick = { run { if (Graph.ring.setClockNow()) "Heure du téléphone envoyée." else "La bague n'a pas répondu." } },
+                onClick = { act { if (Graph.ring.setClockNow()) "Heure du téléphone envoyée." else "La bague n'a pas répondu." } },
                 enabled = s.connected && !busy,
             ) { Text("Mettre à l'heure") }
         }
@@ -153,7 +153,7 @@ private fun StatusCard(d: AppData, s: RingState) {
 
 @Composable
 private fun PrayerCard(d: AppData, s: RingState) {
-    val (busy, run) = rememberBusyRunner()
+    val (busy, act) = rememberBusyRunner()
     val saved = d.settings.prayers
     val known = List(5) { i -> s.prayers.getOrNull(i) ?: saved?.getOrNull(i) }
     val values = known.map { it ?: PrayerSetting(false) }
@@ -176,7 +176,7 @@ private fun PrayerCard(d: AppData, s: RingState) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { picking = true }) { Text(if (lat == null) "Choisir sur la carte" else "Changer de lieu") }
-            if (lat != null) TextButton(onClick = { run { Graph.ring.saveLocation(null, null) } }) { Text("Retirer") }
+            if (lat != null) TextButton(onClick = { act { Graph.ring.saveLocation(null, null) } }) { Text("Retirer") }
         }
         HorizontalDivider(color = LocalZikr.current.line)
         PRAYER_NAMES.forEachIndexed { i, name ->
@@ -190,16 +190,16 @@ private fun PrayerCard(d: AppData, s: RingState) {
                     enabled = s.connected && !busy,
                     onCheckedChange = { on ->
                         val list = values.toMutableList().also { it[i] = it[i].copy(on = on) }
-                        run { Graph.ring.savePrayers(list) }
+                        act { Graph.ring.savePrayers(list) }
                     },
                 )
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { run { Graph.ring.savePrayers(values.map { it.copy(on = true) }) } }, enabled = s.connected && !busy) {
+            TextButton(onClick = { act { Graph.ring.savePrayers(values.map { it.copy(on = true) }) } }, enabled = s.connected && !busy) {
                 Text("Tout activer")
             }
-            TextButton(onClick = { run { Graph.ring.savePrayers(values.map { it.copy(on = false) }) } }, enabled = s.connected && !busy) {
+            TextButton(onClick = { act { Graph.ring.savePrayers(values.map { it.copy(on = false) }) } }, enabled = s.connected && !busy) {
                 Text("Tout désactiver")
             }
         }
@@ -210,14 +210,14 @@ private fun PrayerCard(d: AppData, s: RingState) {
     if (picking) {
         MapPickerDialog(lat, lon, onDismiss = { picking = false }) { la, lo ->
             picking = false
-            run { Graph.ring.saveLocation(la, lo) }
+            act { Graph.ring.saveLocation(la, lo) }
         }
     }
 }
 
 @Composable
 private fun ReminderCard(d: AppData, s: RingState) {
-    val (busy, run) = rememberBusyRunner()
+    val (busy, act) = rememberBusyRunner()
     val r = s.reminder
     val on = r?.on == true
     val base = if (r != null && on) r else d.settings.reminderSchedule
@@ -240,7 +240,7 @@ private fun ReminderCard(d: AppData, s: RingState) {
             Switch(
                 checked = on,
                 enabled = s.connected && !busy && r != null,
-                onCheckedChange = { want -> run { Graph.ring.saveReminder(if (want) minutes else 0, from, to) } },
+                onCheckedChange = { want -> act { Graph.ring.saveReminder(if (want) minutes else 0, from, to) } },
             )
         }
         if (on || r == null) {
@@ -255,7 +255,7 @@ private fun ReminderCard(d: AppData, s: RingState) {
             }
             val changed = r == null || minutes != r.minutes || from != r.start || to != r.end
             Button(
-                onClick = { run { Graph.ring.saveReminder(minutes, from, to) } },
+                onClick = { act { Graph.ring.saveReminder(minutes, from, to) } },
                 enabled = s.connected && !busy && changed,
             ) { Text("Enregistrer") }
         }
@@ -280,7 +280,7 @@ private fun HourPicker(label: String, value: String, onPick: (String) -> Unit) {
 
 @Composable
 private fun MilestoneCard(s: RingState) {
-    val (busy, run) = rememberBusyRunner()
+    val (busy, act) = rememberBusyRunner()
     val m33Known = s.milestones.getOrNull(0)
     val m100Known = s.milestones.getOrNull(1)
     val m33 = m33Known == "1"
@@ -291,8 +291,8 @@ private fun MilestoneCard(s: RingState) {
 
     SectionCard("Vibrations de palier") {
         Muted("La bague vibre quand le compte atteint un multiple de ces nombres.")
-        SwitchRow("Tous les 33", m33, s.connected && !busy) { v -> run { Graph.ring.saveMilestones(v, m100, custom ?: 0) } }
-        SwitchRow("Tous les 100", m100, s.connected && !busy) { v -> run { Graph.ring.saveMilestones(m33, v, custom ?: 0) } }
+        SwitchRow("Tous les 33", m33, s.connected && !busy) { v -> act { Graph.ring.saveMilestones(v, m100, custom ?: 0) } }
+        SwitchRow("Tous les 100", m100, s.connected && !busy) { v -> act { Graph.ring.saveMilestones(m33, v, custom ?: 0) } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = text,
@@ -304,7 +304,7 @@ private fun MilestoneCard(s: RingState) {
                 modifier = Modifier.weight(1f),
             )
             Button(
-                onClick = { run { Graph.ring.saveMilestones(m33, m100, typed) } },
+                onClick = { act { Graph.ring.saveMilestones(m33, m100, typed) } },
                 enabled = s.connected && !busy && typed != (custom ?: 0),
             ) { Text("Enregistrer") }
         }
@@ -321,14 +321,14 @@ private fun MilestoneCard(s: RingState) {
 
 @Composable
 private fun ScreenCard(s: RingState) {
-    val (busy, run) = rememberBusyRunner()
+    val (busy, act) = rememberBusyRunner()
     SectionCard("Écran allumé") {
         Muted("Combien de temps l'écran de la bague reste allumé après un appui.")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             (10..60 step 10).forEach { sec ->
                 FilterChip(
                     selected = s.screenSeconds == sec,
-                    onClick = { run { Graph.ring.saveScreenTime(sec) } },
+                    onClick = { act { Graph.ring.saveScreenTime(sec) } },
                     enabled = s.connected && !busy,
                     label = { Text("$sec s") },
                 )
