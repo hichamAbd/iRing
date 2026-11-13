@@ -1,0 +1,63 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Test and build
+        id: build
+        working-directory: android
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --console=plain testDebugUnitTest assembleRelease -PbuildNumber=${{ github.run_number }} 2>&1 | tee ../build.log
+
+      - name: Publish APK
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk zikr-ring.apk
+          TAG="app-1.0.${{ github.run_number }}"
+          gh release create "$TAG" zikr-ring.apk \
+            --title "Zikr Ring 1.0.${{ github.run_number }}" \
+            --notes "Built from ${{ github.sha }}. Install on Android: download zikr-ring.apk and open it." \
+            --latest
+
+      # Build results go to the ci-results branch so they can be read without the Actions API
+      - name: Save build results
+        if: always()
+        run: |
+          OUT=$(mktemp -d)
+          echo "${{ steps.build.outcome }} run=${{ github.run_number }} sha=${{ github.sha }}" > "$OUT/status.txt"
+          if [ -f build.log ]; then tail -c 400000 build.log > "$OUT/build.log"; fi
+          mkdir -p "$OUT/tests"
+          cp android/app/build/test-results/testDebugUnitTest/*.xml "$OUT/tests/" 2>/dev/null || true
+          cd "$OUT"
+          git init -q -b ci-results
+          git add -A
+          git -c user.name="ci" -c user.email="ci@users.noreply.github.com" commit -q -m "Build ${{ github.run_number }}: ${{ steps.build.outcome }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-results
